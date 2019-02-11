@@ -13,7 +13,7 @@ struct Nothing{ //Nothing type, to encode if some variable doesn't contain any d
 #define DISTANCEFIELD     3
 #define TRIANGLE          4
 
-#define ALIASING_CONST    1.05
+#define ALIASING_CONST    0.70710678118654757
 #define M_SQRT_2          1.4142135
 
 
@@ -40,8 +40,11 @@ in vec2                 f_uv_offset;
 
 float aastep(float threshold1, float value) {
     float afwidth = length(vec2(dFdx(value), dFdy(value))) * ALIASING_CONST;
-    return smoothstep(threshold1-afwidth, threshold1+afwidth, value);
+    // offset so that anti aliasing doesn't extend beyond threshold1
+    threshold1 += afwidth;
+    return smoothstep(threshold1 - afwidth, threshold1 + afwidth, value);
 }
+
 float aastep(float threshold1, float threshold2, float value) {
     float afwidth = length(vec2(dFdx(value), dFdy(value))) * ALIASING_CONST;
     return smoothstep(threshold1-afwidth, threshold1+afwidth, value)-smoothstep(threshold2-afwidth, threshold2+afwidth, value);
@@ -93,7 +96,6 @@ void stroke(vec4 strokecolor, float signed_distance, float half_stroke, inout ve
 
 void glow(vec4 glowcolor, float signed_distance, float inside, inout vec4 color){
     if (glow_width > 0.0){
-        float lolz = (f_scale.x+f_scale.y);
         float outside = (abs(signed_distance)-f_scale.x)/f_scale.y;
         float alpha = 1-outside;
         color = mix(vec4(glowcolor.rgb, glowcolor.a*alpha), color, inside);
@@ -101,8 +103,11 @@ void glow(vec4 glowcolor, float signed_distance, float inside, inout vec4 color)
 }
 
 float get_distancefield(sampler2D distancefield, vec2 uv){
-    return -texture(distancefield, uv).r;
+    float d = -texture(distancefield, uv).r;
+    float afwidth = length(vec2(dFdx(d), dFdy(d))) * ALIASING_CONST;
+    return d + afwidth;
 }
+
 float get_distancefield(Nothing distancefield, vec2 uv){
     return 0.0;
 }
