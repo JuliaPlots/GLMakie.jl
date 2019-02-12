@@ -27,6 +27,7 @@ uniform int             shape; // shape is a uniform for now. Making them a vary
 uniform vec2            resolution;
 uniform bool            transparent_picking;
 
+in float                sdf_scaling;
 flat in vec2            f_scale;
 flat in vec4            f_color;
 flat in vec4            f_bg_color;
@@ -104,8 +105,7 @@ float get_distancefield(sampler2D distancefield, vec2 uv){
     // Kludge for scaling the SDF for testing it with text so that it has units
     // of distance in uv space. Only works with a particular resolution of
     // cached glyphs!
-    float sdf_scaling_kludge = 0.01;
-    return -sdf_scaling_kludge * texture(distancefield, uv).r;
+    return -sdf_scaling * texture(distancefield, uv).r;
 }
 
 float get_distancefield(Nothing distancefield, vec2 uv){
