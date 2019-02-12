@@ -14,8 +14,8 @@ struct Nothing{ //Nothing type, to encode if some variable doesn't contain any d
 #define TRIANGLE          4
 
 // Radius of the antialiasing disk
-#define ANTIALIAS_RADIUS    0.5
-#define M_SQRT_2          1.4142135
+#define ANTIALIAS_RADIUS 0.70710678118654757
+#define M_SQRT_2 1.4142135
 
 
 {{distancefield_type}}  distancefield;
