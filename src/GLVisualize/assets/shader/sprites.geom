@@ -4,6 +4,8 @@
 layout(points) in;
 layout(triangle_strip, max_vertices = 4) out;
 
+#define ANTIALIAS_RADIUS    0.5
+
 vec3 qmul(vec4 quat, vec3 vec){
     float num = quat.x * 2.0;
     float num2 = quat.y * 2.0;
@@ -67,6 +69,15 @@ void emit_vertex(vec2 vertex, vec2 uv, vec2 uv_offset)
     }
     if(billboard){
         final_position = projection * final_position;
+        // FIXME: Needs access to viewport resolution as a shader uniform :-(
+        vec2 viewport_size = vec2(960,540);
+        // Size of a pixel in clipping coordinates
+        vec2 pixsize = ANTIALIAS_RADIUS * 2/viewport_size;
+        final_position.x += uv.x < 0.5 ? -pixsize.x : pixsize.x;
+        final_position.y += uv.y > 0.5 ? -pixsize.y : pixsize.y;
+        // FIXME: All these terrible things :-(
+        uv.x += uv.x < 0.5 ? -0.016 : 0.016;
+        uv.y += uv.y < 0.5 ? -0.028 : 0.028;
     }else{
         final_position = mview * vec4(
             qmul(g_rotation[0], final_position.xyz), 0

@@ -13,7 +13,8 @@ struct Nothing{ //Nothing type, to encode if some variable doesn't contain any d
 #define DISTANCEFIELD     3
 #define TRIANGLE          4
 
-#define ALIASING_CONST    0.70710678118654757
+// Radius of the antialiasing disk
+#define ANTIALIAS_RADIUS    0.5
 #define M_SQRT_2          1.4142135
 
 
@@ -39,15 +40,12 @@ in vec2                 f_uv_offset;
 
 
 float aastep(float threshold1, float value) {
-    float afwidth = length(vec2(dFdx(value), dFdy(value))) * ALIASING_CONST;
-    // offset so that anti aliasing doesn't extend beyond threshold1
-    threshold1 += afwidth;
-    return smoothstep(threshold1 - afwidth, threshold1 + afwidth, value);
+    return smoothstep(threshold1 - ANTIALIAS_RADIUS, threshold1 + ANTIALIAS_RADIUS, value);
 }
 
 float aastep(float threshold1, float threshold2, float value) {
-    float afwidth = length(vec2(dFdx(value), dFdy(value))) * ALIASING_CONST;
-    return smoothstep(threshold1-afwidth, threshold1+afwidth, value)-smoothstep(threshold2-afwidth, threshold2+afwidth, value);
+    return smoothstep(threshold1 - ANTIALIAS_RADIUS, threshold1 + ANTIALIAS_RADIUS, value) -
+           smoothstep(threshold2 - ANTIALIAS_RADIUS, threshold2 + ANTIALIAS_RADIUS, value);
 }
 
 float step2(float edge1, float edge2, float value){
@@ -103,9 +101,11 @@ void glow(vec4 glowcolor, float signed_distance, float inside, inout vec4 color)
 }
 
 float get_distancefield(sampler2D distancefield, vec2 uv){
-    float d = -texture(distancefield, uv).r;
-    float afwidth = length(vec2(dFdx(d), dFdy(d))) * ALIASING_CONST;
-    return d + afwidth;
+    // Kludge for scaling the SDF for testing it with text so that it has units
+    // of distance in uv space. Only works with a particular resolution of
+    // cached glyphs!
+    float sdf_scaling_kludge = 0.01;
+    return -sdf_scaling_kludge * texture(distancefield, uv).r;
 }
 
 float get_distancefield(Nothing distancefield, vec2 uv){
@@ -128,6 +128,11 @@ void main(){
         signed_distance = 1.0;
     else if(shape == TRIANGLE)
         signed_distance = triangle(f_uv);
+
+    // Scale factor for signed distance. Note that this simple scaling
+    // technique assumes the uv->xy mapping is isotropic!
+    float sdf_scale = sqrt(abs(determinant(mat2(dFdx(f_uv), dFdy(f_uv)))));
+    signed_distance = signed_distance / sdf_scale;
 
     float half_stroke = -f_scale.x;
     float inside_start = max(half_stroke, 0.0);
