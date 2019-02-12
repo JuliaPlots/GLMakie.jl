@@ -69,13 +69,6 @@ void emit_vertex(vec2 vertex, vec2 uv, vec2 uv_offset)
     }
     if(billboard){
         final_position = projection * final_position;
-        // Size of a pixel in clipping coordinates
-        vec2 pixsize = ANTIALIAS_RADIUS * 2/resolution;
-        final_position.x += uv.x < 0.5 ? -pixsize.x : pixsize.x;
-        final_position.y += uv.y > 0.5 ? -pixsize.y : pixsize.y;
-        // FIXME: All these terrible things :-(
-        uv.x += uv.x < 0.5 ? -0.016 : 0.016;
-        uv.y += uv.y < 0.5 ? -0.028 : 0.028;
     }else{
         final_position = mview * vec4(
             qmul(g_rotation[0], final_position.xyz), 0
@@ -111,9 +104,13 @@ void main(void)
     vec2 final_scale = o_w.zw + 2*glow_stroke;
     vec2 scale_rel = (final_scale / o_w.zw);
     float hfs = glow_stroke;
-    vec4 uv_min_max = vec4(-scale_rel, scale_rel); //minx, miny, maxx, maxy
-    vec4 vertices = vec4(-hfs + o_w.xy, o_w.xy + (o_w.zw) + glow_stroke); // use offset as origin quad (x,y,w,h)
-    sdf_scaling = 0.5 * length(1.0 / (o_w.zw * resolution));
+    vec2 pixel_scale = 1.0 / (o_w.zw * resolution);
+    sdf_scaling = 0.5 * length(pixel_scale);
+    // Size of a pixel in clipping coordinates
+    vec2 pixsize = ANTIALIAS_RADIUS * 2/resolution;
+    vec2 uv_widened = scale_rel + 2 * pixel_scale;
+    vec4 uv_min_max = vec4(-uv_widened, uv_widened); //minx, miny, maxx, maxy
+    vec4 vertices = vec4(-(hfs + pixsize) + o_w.xy, o_w.xy + o_w.zw + glow_stroke + pixsize); // use offset as origin quad (x,y,w,h)
     f_scale = vec2(stroke_width, glow_width)/o_w.zw;
     emit_vertex(vertices.xy, uv_min_max.xw, uv_o_w.xw);
     emit_vertex(vertices.xw, uv_min_max.xy, uv_o_w.xy);
