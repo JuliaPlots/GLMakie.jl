@@ -1,13 +1,7 @@
 using MakieGallery, AbstractPlotting, GLMakie
 
 push!(MakieGallery.plotting_backends, "GLMakie")
-
 database = MakieGallery.load_database()
-# THese examples download additional data - don't want to deal with that!
-to_skip = ["WorldClim visualization", "Image on Geometry (Moon)", "Image on Geometry (Earth)"]
-# we directly modify the database, which seems easiest for now
-filter!(entry-> !(entry.title in to_skip), database)
-
 tested_diff_path = joinpath(@__DIR__, "tested_different")
 test_record_path = joinpath(@__DIR__, "test_recordings")
 rm(tested_diff_path, force = true, recursive = true)
