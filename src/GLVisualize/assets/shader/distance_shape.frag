@@ -13,7 +13,8 @@ struct Nothing{ //Nothing type, to encode if some variable doesn't contain any d
 #define DISTANCEFIELD     3
 #define TRIANGLE          4
 
-#define ALIASING_CONST    1.05
+// Half width of antialiasing smoothstep
+#define ALIASING_CONST    0.8
 #define M_SQRT_2          1.4142135
 
 
@@ -34,7 +35,7 @@ flat in vec4            f_glow_color;
 flat in uvec2           f_id;
 flat in int             f_primitive_index;
 in vec2                 f_uv;
-in vec2                 f_uv_offset;
+flat in vec4            f_uv_offset;
 
 
 
@@ -44,7 +45,8 @@ float aastep(float threshold1, float value) {
 }
 float aastep(float threshold1, float threshold2, float value) {
     float afwidth = length(vec2(dFdx(value), dFdy(value))) * ALIASING_CONST;
-    return smoothstep(threshold1-afwidth, threshold1+afwidth, value)-smoothstep(threshold2-afwidth, threshold2+afwidth, value);
+    return smoothstep(threshold1-afwidth, threshold1+afwidth, value) -
+           smoothstep(threshold2-afwidth, threshold2+afwidth, value);
 }
 
 float step2(float edge1, float edge2, float value){
@@ -110,13 +112,14 @@ float get_distancefield(Nothing distancefield, vec2 uv){
 void write2framebuffer(vec4 color, uvec2 id);
 
 void main(){
-
     float signed_distance = 0.0;
+
+    vec2 uv_offset = mix(f_uv_offset.xy, f_uv_offset.zw, clamp(0.5*(f_uv+1.0), 0.0, 1.0));
 
     if(shape == CIRCLE)
         signed_distance = circle(f_uv);
     else if(shape == DISTANCEFIELD)
-        signed_distance = get_distancefield(distancefield, f_uv_offset);
+        signed_distance = get_distancefield(distancefield, uv_offset);
     else if(shape == ROUNDED_RECTANGLE)
         signed_distance = rounded_rectangle(f_uv, vec2(0.2), vec2(0.8));
     else if(shape == RECTANGLE)
@@ -129,8 +132,13 @@ void main(){
     float inside = aastep(inside_start, signed_distance);
     vec4 final_color = f_bg_color;
 
-    fill(f_color, image, f_uv_offset, inside, final_color);
+    fill(f_color, image, uv_offset, inside, final_color);
     stroke(f_stroke_color, signed_distance, half_stroke, final_color);
     glow(f_glow_color, signed_distance, aastep(-f_scale.x, signed_distance), final_color);
+    // TODO: In 3D, arguably should discard fragments outside the sprite
+    //if (final_color == f_bg_color)
+    //    discard;
     write2framebuffer(final_color, f_id);
+    // Debug: show the background of the sprite
+    write2framebuffer(mix(final_color, vec4(1,0,0,1), 0.2), f_id);
 }
