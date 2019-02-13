@@ -139,6 +139,4 @@ void main(){
     //if (final_color == f_bg_color)
     //    discard;
     write2framebuffer(final_color, f_id);
-    // Debug: show the background of the sprite
-    write2framebuffer(mix(final_color, vec4(1,0,0,1), 0.2), f_id);
 }
