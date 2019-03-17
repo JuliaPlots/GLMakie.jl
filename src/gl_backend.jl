@@ -20,12 +20,7 @@ function get_texture!(atlas)
         tex = Texture(
                 atlas.data,
                 minfilter = :linear,
-                magfilter = :linear,
-                # TODO: Consider alternatives to using the builtin anisotropic
-                # samplers for signed distance fields; the anisotropic
-                # filtering should happen *after* the SDF thresholding, but
-                # with the builtin sampler it happens before.
-                anisotropic = 16f0,
+                magfilter = :linear
         )
         # update the texture, whenever a new font is added to the atlas
         function callback(distance_field, rectangle)
