@@ -241,7 +241,7 @@ end
 
 
 
-function draw_atomic(screen::GLScreen, scene::Scene, x::Heatmap)
+function draw_atomic(screen::GLScreen, scene::Scene, x::Union{Heatmap, Image})
     robj = cached_robj!(screen, scene, x) do gl_attributes
         gl_attributes[:ranges] = lift(to_range, x[1], x[2])
         interp = to_value(pop!(gl_attributes, :interpolate))
@@ -265,15 +265,6 @@ function get_image(plot)
         delete!(plot, :color_norm)
         delete!(plot, :color_map)
         return pop!(plot, :color)
-    end
-end
-
-function draw_atomic(screen::GLScreen, scene::Scene, x::Image)
-    robj = cached_robj!(screen, scene, x) do gl_attributes
-        gl_attributes[:ranges] = lift(to_range, x[1], x[2])
-        img = get_image(gl_attributes)
-        # remove_automatic!(gl_attributes)
-        visualize(img, Style(:default), gl_attributes).children[]
     end
 end
 
