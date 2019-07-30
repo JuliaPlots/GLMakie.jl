@@ -37,7 +37,7 @@ function cached_robj!(robj_func, screen, scene, x::AbstractPlot)
         gl_attributes = map(filter(((k, v),)-> k != :transformation, x.attributes)) do key_value
             key, value = key_value
             gl_key = to_glvisualize_key(key)
-            gl_value = lift_convert(key, value, x)
+            gl_value = lift_convert(scene, key, value, x)
             gl_key => gl_value
         end
         robj = robj_func(Dict{Symbol, Any}(gl_attributes))
@@ -75,11 +75,33 @@ function handle_view(array::Node{T}, attributes) where T <: SubArray
     A
 end
 
-function lift_convert(key, value, plot)
-    lift(value) do value
-         convert_attribute(value, Key{key}(), Key{AbstractPlotting.plotkey(plot)}())
-     end
+function backend_convert(scene, value, key, plotkey)
+    return convert_attribute(value, key, plotkey)
 end
+
+function backend_convert(scene, value::, key, plotkey) where T <: AbstractPlotting.Unit
+    device = AbstractPlotting.AbstractNumbers.number.(convert(AbstractPlotting.SceneSpace, scene, value))
+    return convert_attribute(device, key, plotkey)
+end
+
+function lift_convert(scene, key, value, plot)
+    # TODO this is super awkward, but we started having all Observables to have
+    # eltype Any, so we can't dispatch on Observable{T}/Node{T}
+    # This needs cleaning up, and we need to have lift_convert in AbstractPlotting
+    # to work nicely for all backends!
+    T = typeof(value[])
+    if T <: Union{Vec{2, U}, U} where U <: AbstractPlotting.Unit
+        lift(value, camera(scene).projection) do value, proj
+            device = AbstractPlotting.AbstractNumbers.number.(convert(AbstractPlotting.SceneSpace, scene, value))
+            return convert_attribute(device, Key{key}(), Key{AbstractPlotting.plotkey(plot)}())
+        end
+    else
+        lift(value) do value
+            convert_attribute(value, Key{key}(), Key{AbstractPlotting.plotkey(plot)}())
+        end
+    end
+end
+
 
 pixel2world(scene, msize::Number) = pixel2world(scene, Point2f0(msize))[1]
 function pixel2world(scene, msize::StaticVector{2})
@@ -124,7 +146,7 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Union{Scatter, MeshScatt
     robj = cached_robj!(screen, scene, x) do gl_attributes
         # signals not supported for shading yet
         gl_attributes[:shading] = to_value(get(gl_attributes, :shading, true))
-        marker = lift_convert(:marker, pop!(gl_attributes, :marker), x)
+        marker = lift_convert(scene, :marker, pop!(gl_attributes, :marker), x)
         if isa(x, Scatter)
             gl_attributes[:billboard] = map(rot-> isa(rot, Billboard), x.attributes[:rotations])
             gl_attributes[:distancefield][] == nothing && delete!(gl_attributes, :distancefield)
