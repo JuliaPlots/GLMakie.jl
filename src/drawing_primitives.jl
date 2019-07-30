@@ -79,7 +79,7 @@ function backend_convert(scene, value, key, plotkey)
     return convert_attribute(value, key, plotkey)
 end
 
-function backend_convert(scene, value::, key, plotkey) where T <: AbstractPlotting.Unit
+function backend_convert(scene, value::T, key, plotkey) where T <: AbstractPlotting.Unit
     device = AbstractPlotting.AbstractNumbers.number.(convert(AbstractPlotting.SceneSpace, scene, value))
     return convert_attribute(device, key, plotkey)
 end
