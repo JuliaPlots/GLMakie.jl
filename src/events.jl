@@ -21,19 +21,24 @@ end
 function addbuttons(scene::Scene, name, button, action, ::Type{ButtonEnum}) where ButtonEnum
     event = getfield(scene.events, name)
     set = event[]
-    button_enum = ButtonEnum(Int(button))
     if button != GLFW.KEY_UNKNOWN
+        button_enum = ButtonEnum(Int(button))
         if action == GLFW.PRESS
-            push!(set, button_enum)
+            if ~(button_enum in set)
+                push!(set, button_enum)
+                event[] = set # trigger setfield event!
+            end
         elseif action == GLFW.RELEASE
-            delete!(set, button_enum)
+            if button_enum in set
+                delete!(set, button_enum)
+                event[] = set # trigger setfield event!
+            end
         elseif action == GLFW.REPEAT
             # nothing needs to be done, besides returning the same set of keys
         else
             error("Unrecognized enum value for GLFW button press action: $action")
         end
     end
-    event[] = set # trigger setfield event!
     return
 end
 
