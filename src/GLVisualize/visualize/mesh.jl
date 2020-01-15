@@ -33,7 +33,7 @@ function _default(mesh::TOrSignal{M}, s::Style, data::Dict) where M <: GLNormalU
         )
     end
 end
-function _default(mesh::TOrSignal{M}, s::Style, data::Dict) where M <: GLNormalVertexcolorMesh
+function _default(mesh::TOrSignal{M}, s::Style, data::Dict) where M <: Union{GLNormalVertexcolorMesh, NormalVertexcolorMesh}
     @gen_defaults! data begin
         shading = true
         main = mesh
