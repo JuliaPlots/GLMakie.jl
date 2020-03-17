@@ -14,6 +14,7 @@ const Primitives3D = Union{AbstractGeometry{3}, AbstractMesh}
 const Sprites = Union{AbstractGeometry{2}, Shape, Char, Type}
 const AllPrimitives = Union{AbstractGeometry, Shape, Char, AbstractMesh}
 
+using AbstractPlotting: RectanglePacker
 
 """
 We plot simple Geometric primitives as particles with length one.
@@ -256,6 +257,7 @@ vec2quaternion(rotation::Vec4f0) = rotation
 vec2quaternion(rotation::VectorTypes) = const_lift(x-> vec2quaternion.(x), rotation)
 vec2quaternion(rotation::Node) = lift(vec2quaternion, rotation)
 vec2quaternion(rotation::AbstractPlotting.Quaternion)= Vec4f0(rotation.data)
+GLAbstraction.gl_convert(rotation::AbstractPlotting.Quaternion)= Vec4f0(rotation.data)
 """
 This is the main function to assemble particles with a GLNormalMesh as a primitive
 """
@@ -315,6 +317,10 @@ end
 to_pointsize(x::Number) = Float32(x)
 to_pointsize(x) = Float32(x[1])
 
+struct PointSizeRender
+    size::Observable
+end
+(x::PointSizeRender)() = glPointSize(to_pointsize(x.size[]))
 """
 This is the most primitive particle system, which uses simple points as primitives.
 This is supposed to be the fastest way of displaying particles!
@@ -322,15 +328,14 @@ This is supposed to be the fastest way of displaying particles!
 function _default(position::VectorTypes{T}, s::style"speed", data::Dict) where T <: Point
     @gen_defaults! data begin
         vertex       = position => GLBuffer
-        color_map    = nothing  => Vec2f0
+        color_map    = nothing  => Texture
         color        = (color_map == nothing ? default(RGBA{Float32}, s) : nothing) => GLBuffer
-        color_norm   = nothing  => Vec2f0
-        intensity    = nothing  => GLBuffer
+        color_norm   = nothing
         scale        = 2f0
         shader       = GLVisualizeShader("fragment_output.frag", "dots.vert", "dots.frag")
         gl_primitive = GL_POINTS
     end
-    data[:prerender] = ()-> glPointSize(to_pointsize(data[:scale][]))
+    data[:prerender] = PointSizeRender(data[:scale])
     data
 end
 
@@ -399,31 +404,28 @@ function _default(
     ) where {C <: Colorant, P <: Point}
     images = to_value(p[1])
     isempty(images) && error("Can not display empty vector of images as primitive")
-    images = sort(images, by=size)
     sizes = map(size, images)
-    scale = Vec2f0(first(sizes))
     if !all(x-> x == sizes[1], sizes) # if differently sized
         # create texture atlas
         maxdims = sum(map(Vec{2, Int}, sizes))
-        rectangles = map(x->SimpleRectangle(0,0,x...), sizes)
+        rectangles = map(x->SimpleRectangle(0, 0, x...), sizes)
         rpack = RectanglePacker(SimpleRectangle(0, 0, maxdims...))
         uv_coordinates = [push!(rpack, rect).area for rect in rectangles]
-        max_xy = mapreduce(maximum, max, uv_coordinates)
-        texture_atlas = Texture(C, tuple(max_xy...))
+        max_xy = maximum(maximum.(uv_coordinates))
+        texture_atlas = Texture(C, (max_xy...,))
         for (area, img) in zip(uv_coordinates, images)
             texture_atlas[area] = img #transfer to texture atlas
         end
-        scale = Vec2f0.(widths.(uv_coordinates))
         data[:uv_offset_width] = map(uv_coordinates) do uv
-            mini = minimum(uv) ./ max_xy
-            maxi = maximum(uv) ./ max_xy
-            Vec4f0(mini..., maxi...)
+            m = max_xy .- 1
+            mini = reverse((minimum(uv)) ./ m)
+            maxi = reverse((maximum(uv) .- 1) ./ m)
+            return Vec4f0(mini..., maxi...)
         end
         images = texture_atlas
     end
     data[:image] = images # we don't want this to be overwritten by user
     @gen_defaults! data begin
-        scale = scale
         shape = RECTANGLE
         offset = Vec2f0(0)
     end

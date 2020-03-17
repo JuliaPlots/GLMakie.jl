@@ -1,14 +1,13 @@
 module GLMakie
 
 using ModernGL, FixedPointNumbers, Colors, GeometryTypes, StaticArrays
-using AbstractPlotting, FreeType, FreeTypeAbstraction, FileIO, IntervalSets
-using ImageCore
+using AbstractPlotting, FileIO
 
 using AbstractPlotting: @key_str, Key, broadcast_foreach, to_ndim, NativeFont
 using AbstractPlotting: Scene, Lines, Text, Image, Heatmap, Scatter
 using AbstractPlotting: convert_attribute, @extractvalue, LineSegments
 using AbstractPlotting: @get_attribute, to_value, to_colormap, extrema_nan
-using IntervalSets: ClosedInterval, (..)
+using AbstractPlotting: ClosedInterval, (..)
 
 using Base: RefValue
 import Base: push!, isopen, show
@@ -45,9 +44,20 @@ if WORKING_OPENGL
     include("gl_backend.jl")
 end
 
+
+function activate!(use_display = true)
+    b = GLBackend()
+    AbstractPlotting.register_backend!(b)
+    AbstractPlotting.set_glyph_resolution!(AbstractPlotting.High)
+    AbstractPlotting.current_backend[] = b
+    AbstractPlotting.inline!(!use_display)
+end
+
 function __init__()
     if WORKING_OPENGL
-        AbstractPlotting.register_backend!(GLBackend())
+        activate!()
+    else
+        @warn("Loaded OpenGL Backend, but OpenGL isn't working")
     end
 end
 

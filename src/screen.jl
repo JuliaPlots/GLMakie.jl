@@ -1,7 +1,7 @@
 const ScreenID = UInt8
 const ZIndex = Int
 # ID, Area, clear, is visible, background color
-const ScreenArea = Tuple{ScreenID, Node{IRect2D}, Node{Bool}, Node{Bool}, Node{RGBAf0}}
+const ScreenArea = Tuple{ScreenID, Scene}
 
 
 abstract type GLScreen <: AbstractScreen end
@@ -50,10 +50,27 @@ Base.show(io::IO, screen::Screen) = print(io, "GLMakie.Screen(...)")
 Base.size(x::Screen) = size(x.framebuffer)
 
 function insertplots!(screen::GLScreen, scene::Scene)
+    get!(screen.screen2scene, WeakRef(scene)) do
+        id = length(screen.screens) + 1
+        push!(screen.screens, (id, scene))
+        id
+    end
     for elem in scene.plots
         insert!(screen, scene, elem)
     end
     foreach(s-> insertplots!(screen, s), scene.children)
+end
+
+function Base.delete!(screen::Screen, scene::Scene, plot::AbstractPlot)
+    if !isempty(plot.plots)
+        # this plot consists of children, so we flatten it and delete the children instead
+        delete!.(Ref(screen), Ref(scene), AbstractPlotting.flatten_plots(plot))
+    else
+        renderobject = get(screen.cache, objectid(plot)) do
+            error("Could not find $(typeof(subplot)) in current GLMakie screen!")
+        end
+        filter!(x-> x[3] !== renderobject, screen.renderlist)
+    end
 end
 
 function Base.empty!(screen::GLScreen)
@@ -94,13 +111,17 @@ function AbstractPlotting.backend_display(screen::Screen, scene::Scene)
     return
 end
 
-
 function to_jl_layout!(A, B)
     ind1, ind2 = axes(A)
     n = first(ind2) + last(ind2)
     for i in ind1
         @simd for j in ind2
-            @inbounds B[n-j, i] = ImageCore.clamp01nan(A[i, j])
+            @inbounds c = A[i, j]
+            c = mapc(c) do channel
+                x = clamp(channel, 0.0, 1.0)
+                return ifelse(isfinite(x), x, 0.0)
+            end
+            @inbounds B[n-j, i] = c
         end
     end
     return B
@@ -115,13 +136,66 @@ function fast_color_data!(dest::Array{RGB{N0f8}, 2}, source::Texture{T, 2}) wher
 end
 
 
+function render_colorbuffer(screen)
+    nw = to_native(screen)
+    GLAbstraction.is_context_active(nw) || return
+    fb = screen.framebuffer
+    w, h = size(fb)
+    glEnable(GL_STENCIL_TEST)
+    #prepare for geometry in need of anti aliasing
+    glBindFramebuffer(GL_FRAMEBUFFER, fb.id[1]) # color framebuffer
+    glDrawBuffers(2, [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1])
+    glEnable(GL_STENCIL_TEST)
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
+    glStencilMask(0xff)
+    glClearStencil(0)
+    glClearColor(0,0,0,0)
+    glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT)
+    setup!(screen)
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
+    glStencilMask(0x00)
+    GLAbstraction.render(screen, true)
+    glDisable(GL_STENCIL_TEST)
+
+    # transfer color to luma buffer and apply fxaa
+    glBindFramebuffer(GL_FRAMEBUFFER, fb.id[2]) # luma framebuffer
+    glDrawBuffer(GL_COLOR_ATTACHMENT0)
+    glViewport(0, 0, w, h)
+    glClearColor(0,0,0,0)
+    glClear(GL_COLOR_BUFFER_BIT)
+    GLAbstraction.render(fb.postprocess[1]) # add luma and preprocess
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fb.id[1]) # transfer to non fxaa framebuffer
+    glViewport(0, 0, w, h)
+    glDrawBuffer(GL_COLOR_ATTACHMENT0)
+    GLAbstraction.render(fb.postprocess[2]) # copy with fxaa postprocess
+
+    #prepare for non anti aliased pass
+    glDrawBuffers(2, [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1])
+
+    glEnable(GL_STENCIL_TEST)
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
+    glStencilMask(0x00)
+    GLAbstraction.render(screen, false)
+    glDisable(GL_STENCIL_TEST)
+    glBindFramebuffer(GL_FRAMEBUFFER, 0) # transfer back to window
+    glViewport(0, 0, w, h)
+    glClearColor(0, 0, 0, 0)
+    glClear(GL_COLOR_BUFFER_BIT)
+    GLAbstraction.render(fb.postprocess[3]) # copy postprocess
+end
+
 function AbstractPlotting.colorbuffer(screen::Screen)
     if isopen(screen)
-        GLFW.PollEvents()
-        render_frame(screen) # let it render
-        GLFW.SwapBuffers(to_native(screen))
-        glFinish() # block until opengl is done rendering
         ctex = screen.framebuffer.color
+        # polling may change window size, when its bigger than monitor!
+        # we still need to poll though, to get all the newest events!
+        # GLFW.PollEvents()
+        # we need to resize the framebuffer to the dimensions before polling
+        render_colorbuffer(screen) # let it render
+        glFinish() # block until opengl is done rendering
         if size(ctex) != size(screen.framecache[1])
             s = size(ctex)
             screen.framecache = (Matrix{RGB{N0f8}}(undef, s), Matrix{RGB{N0f8}}(undef, reverse(s)))
@@ -142,10 +216,7 @@ function Base.push!(screen::GLScreen, scene::Scene, robj)
     end
     screenid = get!(screen.screen2scene, WeakRef(scene)) do
         id = length(screen.screens) + 1
-        bg = lift(to_color, scene.theme[:backgroundcolor])
-        clear = lift(identity, scene.theme[:clear])
-        visible = lift(identity, scene.theme[:visible])
-        push!(screen.screens, (id, scene.px_area, clear, visible, bg))
+        push!(screen.screens, (id, scene))
         id
     end
     push!(screen.renderlist, (0, screenid, robj))
@@ -338,6 +409,7 @@ function global_gl_screen(resolution::Tuple, visibility::Bool, tries = 1)
 end
 
 function pick_native(screen::Screen, xy::Vec{2, Float64})
+    isopen(screen) || return SelectionID{Int}(0, 0)
     sid = Base.RefValue{SelectionID{UInt16}}()
     window_size = widths(screen)
     fb = screen.framebuffer

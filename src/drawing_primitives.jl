@@ -1,3 +1,5 @@
+using AbstractPlotting: get_texture_atlas, glyph_bearing!, glyph_uv_width!, glyph_scale!, calc_position, calc_offset
+
 gpuvec(x) = GPUVector(GLBuffer(x))
 
 to_range(x, y) = to_range.((x, y))
@@ -5,6 +7,7 @@ to_range(x::ClosedInterval) = (minimum(x), maximum(x))
 to_range(x::VecTypes{2}) = x
 to_range(x::AbstractRange) = (minimum(x), maximum(x))
 to_range(x::AbstractVector) = (minimum(x), maximum(x))
+
 function to_range(x::AbstractArray)
     if length(x) in size(x) # assert that just one dim != 1
         to_range(vec(x))
@@ -12,6 +15,7 @@ function to_range(x::AbstractArray)
         error("Can't convert to a range. Please supply a range/vector/interval or a tuple (min, max)")
     end
 end
+
 function to_glvisualize_key(k)
     k == :rotations && return :rotation
     k == :markersize && return :scale
@@ -34,14 +38,24 @@ function cached_robj!(robj_func, screen, scene, x::AbstractPlot)
     # poll inside functions to make wait on compile less prominent
     GLFW.PollEvents()
     robj = get!(screen.cache, objectid(x)) do
-        gl_attributes = map(filter(((k, v),)-> k != :transformation, x.attributes)) do key_value
+        filtered = filter(x.attributes) do (k, v)
+            !(k in (:transformation, :tickranges, :ticklabels, :raw))
+        end
+        gl_attributes = Dict{Symbol, Any}(map(filtered) do key_value
             key, value = key_value
             gl_key = to_glvisualize_key(key)
             gl_value = lift_convert(key, value, x)
             gl_key => gl_value
+        end)
+        if haskey(gl_attributes, :scale)
+            gl_attributes[:use_pixel_marker] = lift(x-> x isa Vec{2, <:AbstractPlotting.Pixel}, gl_attributes[:scale])
+            gl_attributes[:scale] = lift(x-> AbstractPlotting.number.(x), gl_attributes[:scale])
+            if haskey(gl_attributes, :offset)
+                gl_attributes[:offset] = lift(x-> AbstractPlotting.number.(x), gl_attributes[:offset])
+            end
         end
-        robj = robj_func(Dict{Symbol, Any}(gl_attributes))
-        for key in (:view, :projection, :resolution, :eyeposition, :projectionview)
+        robj = robj_func(gl_attributes)
+        for key in (:pixel_space, :view, :projection, :resolution, :eyeposition, :projectionview)
             robj[key] = getfield(scene.camera, key)
         end
         screen.cache2plot[robj.id] = x
@@ -68,6 +82,7 @@ function handle_view(array::SubArray, attributes)
     attributes[:indices] = indices
     A
 end
+
 function handle_view(array::Node{T}, attributes) where T <: SubArray
     A = lift(parent, array)
     indices = lift(index1D, array)
@@ -82,6 +97,7 @@ function lift_convert(key, value, plot)
 end
 
 pixel2world(scene, msize::Number) = pixel2world(scene, Point2f0(msize))[1]
+
 function pixel2world(scene, msize::StaticVector{2})
     # TODO figure out why Vec(x, y) doesn't work correctly
     p0 = AbstractPlotting.to_world(scene, Point2f0(0.0))
@@ -131,18 +147,21 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Union{Scatter, MeshScatt
             gl_attributes[:uv_offset_width][] == Vec4f0(0) && delete!(gl_attributes, :uv_offset_width)
         end
         positions = handle_view(x[1], gl_attributes)
-        handle_intensities!(gl_attributes)
         if marker[] isa FastPixel
             filter!(gl_attributes) do (k, v,)
-                k in (:color_map, :color, :color_norm, :intensity, :scale, :fxaa)
+                k in (:color_map, :color, :color_norm, :scale, :fxaa, :model)
+            end
+            if !(gl_attributes[:color][] isa AbstractVector{<: Number})
+                delete!(gl_attributes, :color_norm)
+                delete!(gl_attributes, :color_map)
             end
             visualize(positions, Style(:speed), Dict{Symbol, Any}(gl_attributes)).children[]
         else
+            handle_intensities!(gl_attributes)
             visualize((marker, positions), Style(:default), Dict{Symbol, Any}(gl_attributes)).children[]
         end
     end
 end
-
 
 function draw_atomic(screen::GLScreen, scene::Scene, x::Lines)
     robj = cached_robj!(screen, scene, x) do gl_attributes
@@ -154,32 +173,35 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Lines)
         visualize(positions, Style(:lines), data).children[]
     end
 end
+
 function draw_atomic(screen::GLScreen, scene::Scene, x::LineSegments)
     robj = cached_robj!(screen, scene, x) do gl_attributes
         linestyle = pop!(gl_attributes, :linestyle)
         data = Dict{Symbol, Any}(gl_attributes)
         data[:pattern] = to_value(linestyle)
         positions = handle_view(x.converted[1], data)
-        delete!(data, :color_map)
-        delete!(data, :color_norm)
+        if haskey(data, :color) && data[:color][] isa AbstractVector{<: Number}
+            c = pop!(data, :color)
+            data[:color] = lift(AbstractPlotting.el32convert, c)
+        else
+            delete!(data, :color_map)
+            delete!(data, :color_norm)
+        end
         visualize(positions, Style(:linesegment), data).children[]
     end
 end
 
-
-using AbstractPlotting: get_texture_atlas, glyph_bearing!, glyph_uv_width!, glyph_scale!, calc_position, calc_offset
-
 function to_gl_text(string, startpos::AbstractVector{T}, textsize, font, align, rot, model) where T <: VecTypes
     atlas = get_texture_atlas()
     N = length(T)
-    positions, uv_offset_width, scale = Point{N, Float32}[], Vec4f0[], Vec2f0[]
+    positions, uv_offset_width, scale = Point{3, Float32}[], Vec4f0[], Vec2f0[]
     # toffset = calc_offset(string, textsize, font, atlas)
     char_str_idx = iterate(string)
     broadcast_foreach(1:length(string), startpos, textsize, (font,), align) do idx, pos, tsize, font, align
         char, str_idx = char_str_idx
         _font = isa(font[1], NativeFont) ? font[1] : font[1][idx]
         mpos = model * Vec4f0(to_ndim(Vec3f0, pos, 0f0)..., 1f0)
-        push!(positions, to_ndim(Point{N, Float32}, mpos, 0))
+        push!(positions, to_ndim(Point{3, Float32}, mpos, 0))
         push!(uv_offset_width, glyph_uv_width!(atlas, char, _font))
         if isa(tsize, Vec2f0) # this needs better unit support
             push!(scale, tsize) # Vec2f0, we assume it's already in absolute size
@@ -194,17 +216,17 @@ end
 function to_gl_text(string, startpos::VecTypes{N, T}, textsize, font, aoffsetvec, rot, model) where {N, T}
     atlas = get_texture_atlas()
     mpos = model * Vec4f0(to_ndim(Vec3f0, startpos, 0f0)..., 1f0)
-    pos = to_ndim(Point{N, Float32}, mpos, 0f0)
+    pos = to_ndim(Point{3, Float32}, mpos, 0f0)
     rscale = Float32(textsize)
     chars = Vector{Char}(string)
     scale = glyph_scale!.(Ref(atlas), chars, (font,), rscale)
     positions2d = calc_position(string, Point2f0(0), rscale, font, atlas)
     # font is Vector{FreeType.NativeFont} so we need to protec
     aoffset = AbstractPlotting.align_offset(Point2f0(0), positions2d[end], atlas, rscale, font, aoffsetvec)
-    aoffsetn = to_ndim(Point{N, Float32}, aoffset, 0f0)
+    aoffsetn = to_ndim(Point{3, Float32}, aoffset, 0f0)
     uv_offset_width = glyph_uv_width!.(Ref(atlas), chars, (font,))
     positions = map(positions2d) do p
-        pn = rot * (to_ndim(Point{N, Float32}, p, 0f0) .+ aoffsetn)
+        pn = rot * (to_ndim(Point{3, Float32}, p, 0f0) .+ aoffsetn)
         pn .+ pos
     end
     positions, Vec2f0(0), uv_offset_width, scale
@@ -239,8 +261,6 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Text)
     end
 end
 
-
-
 function draw_atomic(screen::GLScreen, scene::Scene, x::Union{Heatmap, Image})
     robj = cached_robj!(screen, scene, x) do gl_attributes
         gl_attributes[:ranges] = lift(to_range, x[1], x[2])
@@ -248,11 +268,15 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Union{Heatmap, Image})
         interp = interp ? :linear : :nearest
         tex = Texture(x[3], minfilter = interp)
         pop!(gl_attributes, :color)
-        gl_attributes[:stroke_width] = pop!(gl_attributes, :thickness)
+        if haskey(gl_attributes, :nan_color)
+            gl_attributes[:nan_color] = lift(to_color, gl_attributes[:nan_color])
+        end
+        if haskey(gl_attributes, :thickness)
+            gl_attributes[:stroke_width] = lift(to_color, gl_attributes[:thickness])
+        end
         GLVisualize.assemble_shader(GLVisualize.gl_heatmap(tex, gl_attributes)).children[]
     end
 end
-
 
 function vec2color(colors, cmap, crange)
     AbstractPlotting.interpolated_getindex.((to_colormap(cmap),), colors, (crange,))
@@ -281,22 +305,23 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Mesh)
         mesh = lift(x[1], color, cmap, crange) do m, c, cmap, crange
             c = convert_mesh_color(c, cmap, crange)
             if isa(m, GLNormalColorMesh) || isa(m, GLNormalAttributeMesh) || isa(m, GLNormalVertexcolorMesh)
-                m
+                return m
             elseif c isa Colorant
                 get!(gl_attributes, :color, Node(c))[] = c
                 if !(isa(m, GLPlainMesh) || isa(m, GLNormalMesh))
-                    GLNormalMesh(m)
+                    return GLNormalMesh(m)
                 else
-                    m
+                    return m
                 end
             elseif c isa AbstractMatrix{<: Colorant}
                 get!(gl_attributes, :color, Node(c))[] = c
-                m
+                return m
             elseif c isa AbstractVector{<: Colorant}
                 if length(c) != length(vertices(m))
                     error("Please use the same amount of colors as vertices. Found: $(length(vertices(m))) vertices, and $(length(c)) colors")
                 end
-                HomogenousMesh(GLNormalMesh(m), Dict{Symbol, Any}(:color => c))
+                glm = GLNormalMesh(m)
+                return HomogenousMesh(glm, Dict{Symbol, Any}(:color => convert(Vector{RGBAf0}, c)))
             else
                 error("Unsupported color type: $(typeof(c))")
             end
@@ -304,7 +329,6 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Mesh)
         visualize(mesh, Style(:default), gl_attributes).children[]
     end
 end
-
 
 function draw_atomic(screen::GLScreen, scene::Scene, x::Surface)
     robj = cached_robj!(screen, scene, x) do gl_attributes
@@ -400,13 +424,13 @@ function surface_contours(volume::Volume)
     )
     robj = RenderObject(gl_data, shader, vp, bb)
     robj.postrenderfunction = GLAbstraction.StandardPostrender(robj.vertexarray, GL_TRIANGLES)
-    robj
+    return robj
 end
 
 function draw_atomic(screen::GLScreen, scene::Scene, vol::Volume)
     robj = cached_robj!(screen, scene, vol) do gl_attributes
         if gl_attributes[:algorithm][] == 7
-            surface_contours(vol)
+            return surface_contours(vol)
         else
             model = vol[:model]
             x, y, z = vol[1], vol[2], vol[3]
@@ -422,7 +446,7 @@ function draw_atomic(screen::GLScreen, scene::Scene, vol::Volume)
                 )
                 convert(Mat4f0, m) * m2
             end
-            visualize(vol[4], Style(:default), gl_attributes).children[]
+            return visualize(vol[4], Style(:default), gl_attributes).children[]
         end
     end
 end
