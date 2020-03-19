@@ -20,7 +20,7 @@ Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-AbstractPlotting = "^0.9.27"
+AbstractPlotting = "^0.9.26" # TODO TODO WARNING WIP CHANGE ME NOW
 ColorTypes = "0.8, 0.9, 0.10"
 Colors = "0.9, 0.10, 0.11, 0.12"
 FileIO = "^1.1"
