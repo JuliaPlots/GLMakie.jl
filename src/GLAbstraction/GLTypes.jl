@@ -327,9 +327,11 @@ function RenderObject(
             # glconvert is designed to just convert everything to a fitting opengl datatype, but sometimes exceptions are needed
             # e.g. Texture{T,1} and GLBuffer{T} are both usable as an native conversion canditate for a Julia's Array{T, 1} type.
             # but in some cases we want a Texture, sometimes a GLBuffer or TextureBuffer
-            data[k] = gl_convert(targets[k], v)
+            gl_convert_kwargs_dict = get(data, :gl_convert_kwargs, Dict())
+            gl_convert_kwargs_k = get(gl_convert_kwargs_dict, k, Dict())
+            data[k] = gl_convert(targets[k], v; gl_convert_kwargs_k...)
         else
-            k in (:indices, :visible, :fxaa) && continue
+            k in (:indices, :visible, :fxaa, :gl_convert_kwargs) && continue
             if isa_gl_struct(v) # structs are treated differently, since they have to be composed into their fields
                 merge!(data, gl_convert_struct(v, k))
             elseif applicable(gl_convert, v) # if can't be converted to an OpenGL datatype,

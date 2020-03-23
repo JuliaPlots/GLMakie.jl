@@ -300,7 +300,12 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Image)
         gl_attributes[:ranges] = lift(to_range, x[1], x[2])
         img = get_image(gl_attributes)
         # remove_automatic!(gl_attributes)
-        visualize(img, Style(:default), gl_attributes).children[]
+        interp = to_value(get(gl_attributes, :interpolation, :linear))
+        delete!(gl_attributes, :interpolation)
+        a = GLVisualize.default(img, Style(:default), gl_attributes)
+        a[:gl_convert_kwargs] = Dict()
+        a[:gl_convert_kwargs][:image] = Dict(:minfilter=>interp, :magfilter=>interp)
+        GLVisualize.assemble_shader(a).children[]
     end
 end
 
