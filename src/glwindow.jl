@@ -147,59 +147,12 @@ function Base.resize!(fb::GLFramebuffer, window_size)
     nothing
 end
 
-
-# struct MonitorProperties
-#     name::String
-#     isprimary::Bool
-#     position::Vec{2, Int}
-#     physicalsize::Vec{2, Int}
-#     videomode::GLFW.VidMode
-#     videomode_supported::Vector{GLFW.VidMode}
-#     dpi::Vec{2, Float64}
-#     monitor::GLFW.Monitor
-# end
-#
-# function MonitorProperties(monitor::GLFW.Monitor)
-#     name = GLFW.GetMonitorName(monitor)
-#     isprimary = GLFW.GetPrimaryMonitor() == monitor
-#     position = Vec{2, Int}(GLFW.GetMonitorPos(monitor)...)
-#     physicalsize = Vec{2, Int}(GLFW.GetMonitorPhysicalSize(monitor)...)
-#     videomode = GLFW.GetVideoMode(monitor)
-#     sfactor = Sys.isapple() ? 2.0 : 1.0
-#     dpi = Vec(videomode.width * 25.4, videomode.height * 25.4) * sfactor ./ Vec{2, Float64}(physicalsize)
-#     videomode_supported = GLFW.GetVideoModes(monitor)
-#
-#     MonitorProperties(name, isprimary, position, physicalsize, videomode, videomode_supported, dpi, monitor)
-# end
-
-# just for dpi...
-struct MonitorProperties
-  monitor::GLFW.Monitor
-
-  function MonitorProperties(monitor::GLFW.Monitor)
-    @warn "`MonitorProperties(monitor::GLFW.Monitor)` is deprecated, use `monitor` instead."
-    new(monitor)
-  end
-end
-
-# dpi
 function GetDPI(monitor::GLFW.Monitor)
-  sfactor = Sys.isapple() ? 2.0 : 1.0
-  dpi = Vec(monitor.videomode.width * 25.4, monitor.videomode.height * 25.4) * sfactor ./ Vec{2, Float64}(monitor.physicalsize...)
-end
-
-# dpi access
-function Base.getproperty(props::MonitorProperties, name::Symbol)
-    monitor = getfield(props, :monitor)
-    if name == :dpi
-      GetDPI(monitor)
-    else
-      Base.getproperty(monitor, name) # see GLFW
-    end
+    sfactor = Sys.isapple() ? 2.0 : 1.0
+    dpi = Vec(monitor.videomode.width * 25.4, monitor.videomode.height * 25.4) * sfactor ./ Vec{2, Float64}(monitor.physicalsize...)
 end
 
 was_destroyed(nw::GLFW.Window) = nw.handle == C_NULL
-
 
 function GLContext()
     context = GLFW.GetCurrentContext()
@@ -226,19 +179,11 @@ function destroy!(nw::GLFW.Window)
     was_current && ShaderAbstractions.switch_context!()
 end
 
-# name 'windowsize' could lead to confusion between GetWindowSize and GetFramebufferSize!
-# https://www.khronos.org/opengl/wiki/Default_Framebuffer
-# https://learnopengl.com/Advanced-OpenGL/Framebuffers
 function defaultframebuffersize(nw::GLFW.Window)
     was_destroyed(nw) && return (0, 0)
     size = GLFW.GetFramebufferSize(nw)
     return (size.width, size.height)
 end
-
-@deprecate windowsize(nw::GLFW.Window) defaultframebuffersize(nw)
-
-const contextsize = defaultframebuffersize # suggestion
-const displaysize = defaultframebuffersize # suggestion
 
 function Base.isopen(window::GLFW.Window)
     was_destroyed(window) && return false

@@ -82,7 +82,7 @@ end
 
 function Base.resize!(window::GLFW.Window, resolution...)
     if isopen(window)
-        oldsize = windowsize(window)
+        oldsize = defaultframebuffersize(window)
         retina_scale = retina_scaling_factor(window)
         w, h = resolution ./ retina_scale
         if oldsize == (w, h)
@@ -95,7 +95,7 @@ function Base.resize!(window::GLFW.Window, resolution...)
         # we have the desired size in the end
         for i in 1:100
             isopen(window) || return
-            newsize = windowsize(window)
+            newsize = defaultframebuffersize(window)
             # we aren't guaranteed to get exactly w & h, since the window
             # manager is allowed to restrict the size...
             # So we can only test, if the size changed, but not if it matches
@@ -406,7 +406,7 @@ function global_gl_screen(resolution::Tuple, visibility::Bool, tries = 1)
     screen = global_gl_screen()
     GLFW.set_visibility!(to_native(screen), visibility)
     resize!(screen, resolution...)
-    new_size = windowsize(to_native(screen))
+    new_size = defaultframebuffersize(to_native(screen))
     # I'm not 100% sure, if there are platforms where I'm never
     # able to resize the screen (opengl might just allow that).
     # so, we guard against that with just trying another resize one time!

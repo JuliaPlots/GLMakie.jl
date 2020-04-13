@@ -75,17 +75,15 @@ function window_area(scene::Scene, window)
         rect = event[]
         if Vec(w, h) != widths(rect)
             monitor = GLFW.GetPrimaryMonitor()
-            props = MonitorProperties(monitor)
             # dpi of a monitor should be the same in x y direction.
             # if not, minimum seems to be a fair default
-            dpievent[] = minimum(props.dpi)
+            dpievent[] = minimum(GetDPI(monitor))
             event[] = IRect(minimum(rect), w, h)
         end
     end
     disconnect!(window, window_area)
     monitor = GLFW.GetPrimaryMonitor()
-    props = MonitorProperties(monitor)
-    dpievent[] = minimum(props.dpi)
+    dpievent[] = minimum(GetDPI(monitor))
     GLFW.SetFramebufferSizeCallback(window, windowsize)
     # TODO put back window position, but right now it makes more trouble than it helps#
     # GLFW.SetWindowPosCallback(window, windowposition)
