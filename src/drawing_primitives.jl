@@ -403,6 +403,15 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Mesh)
             end
         end
 
+        final_mesh = lift(mesh) do mesh
+            meta_data = meta
+            points = coordinates(mesh)
+            positions = apply_transform(transform_func_obs(x), metafree(points))
+            attr = attributes(points)
+            delete!(attr, :position)
+            return Mesh(meta(positions; attr...), faces(mesh))
+        end
+
         visualize(mesh, Style(:default), gl_attributes)
     end
 end
