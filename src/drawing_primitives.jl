@@ -446,7 +446,12 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Surface)
         args = x[1:3]
         gl_attributes[:shading] = to_value(get(gl_attributes, :shading, true))
         if all(v-> to_value(v) isa AbstractMatrix, args)
-            args = map(args) do arg
+
+            transformed_args = lift(args...) do xs, ys, zs
+                return apply_transform.(Ref(transform_func_obs(x)), Point3f0.(xs, ys, zs))
+            end
+
+            args = map(transformed_args) do arg
                 Texture(el32convert(arg); minfilter=:nearest)
             end
             return visualize(args, Style(:surface), gl_attributes)
