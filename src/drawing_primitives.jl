@@ -406,10 +406,15 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Mesh)
         final_mesh = lift(mesh) do mesh
             meta_data = meta
             points = coordinates(mesh)
-            positions = apply_transform(transform_func_obs(x), metafree(points))
-            attr = attributes(points)
-            delete!(attr, :position)
-            return Mesh(meta(positions; attr...), faces(mesh))
+            positions = apply_transform(transform_func_obs(x)[], metafree(points))
+            @show typeof(points)
+            if !(points isa Vector{<: Point})
+                attr = GeometryBasics.attributes(points)
+                delete!(attr, :position)
+            else
+                attr = Dict()
+            end
+            return GeometryBasics.Mesh(meta(positions; attr...), faces(mesh))
         end
 
         visualize(mesh, Style(:default), gl_attributes)
