@@ -291,6 +291,8 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Text)
             lift(getindex, gl_text, i)
         end
 
+        positions = apply_transform(transform_func_obs(x), positions)
+
         atlas = get_texture_atlas()
         keys = (:color, :strokecolor, :strokewidth, :rotation)
 
