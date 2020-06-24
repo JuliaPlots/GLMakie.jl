@@ -216,6 +216,11 @@ function renderloop end
 # TODO a global is not very nice, but it's the simplest way right now to swap out
 # the rendering loop
 const opengl_renderloop = Ref{Function}(renderloop)
+const opengl_renderloop_enabled = Ref{Bool}(true)
+
+function enable_renderloop!(enable::Bool) 
+    opengl_renderloop_enabled[] = enable
+end
 
 """
 Julia 1.0.3 doesn't have I:J, so we copy the implementation from 1.1 under a new name:

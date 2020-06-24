@@ -2,18 +2,22 @@ function renderloop(screen::Screen; framerate = 1/30, prerender = () -> nothing)
     # Somehow errors get sometimes ignored, so we at least print them here
     try
         while isopen(screen)
-            t = time()
-            GLFW.PollEvents() # GLFW poll
-            screen.render_tick[] = nothing
-            prerender()
-            make_context_current(screen)
-            render_frame(screen)
-            GLFW.SwapBuffers(to_native(screen))
-            diff = framerate - (time() - t)
-            if diff > 0
-                sleep(diff)
-            else # if we don't sleep, we need to yield explicitely
-                yield()
+            if opengl_renderloop_enabled[]
+                t = time()
+                GLFW.PollEvents() # GLFW poll
+                screen.render_tick[] = nothing
+                prerender()
+                make_context_current(screen)
+                render_frame(screen)
+                GLFW.SwapBuffers(to_native(screen))
+                diff = framerate - (time() - t)
+                if diff > 0
+                    sleep(diff)
+                else # if we don't sleep, we need to yield explicitely
+                    yield()
+                end
+            else
+                sleep(framerate)
             end
         end
     catch e
