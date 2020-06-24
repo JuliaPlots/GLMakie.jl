@@ -1,4 +1,4 @@
-function renderloop(screen::Screen; framerate = 1/30, prerender = () -> nothing)
+function renderloop(screen::Screen; framerate = 30, prerender = () -> nothing)
     # Somehow errors get sometimes ignored, so we at least print them here
     try
         while isopen(screen)
