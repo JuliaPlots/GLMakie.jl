@@ -1,4 +1,4 @@
-function _render(screen::Screen)
+function _render(screen::Screen; prerender = () -> nothing)
     GLFW.PollEvents() # GLFW poll
     screen.render_tick[] = nothing
     prerender()
@@ -12,7 +12,7 @@ function renderloop(screen::Screen; framerate = 30, prerender = () -> nothing)
         t = Timer(0, interval = 1 / framerate)
         while isopen(screen)
             if opengl_renderloop_enabled[]
-                _render(screen)
+                _render(screen, prerender = prerender)
             end
             if isopen(t)
                 wait(t)
