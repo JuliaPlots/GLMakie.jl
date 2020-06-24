@@ -217,9 +217,14 @@ function renderloop end
 # the rendering loop
 const opengl_renderloop = Ref{Function}(renderloop)
 const opengl_renderloop_enabled = Ref{Bool}(true)
+const opengl_renderloop_framerate = Ref{Real}(30.0)
 
 function enable_renderloop!(enable::Bool) 
     opengl_renderloop_enabled[] = enable
+end
+
+function renderloop_framerate!(framerate::Real)
+    opengl_renderloop_framerate[] = framerate
 end
 
 """

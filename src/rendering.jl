@@ -6,11 +6,16 @@ function _render(screen::Screen; prerender = () -> nothing)
     render_frame(screen)
     GLFW.SwapBuffers(to_native(screen))
 end
-function renderloop(screen::Screen; framerate = 30, prerender = () -> nothing)
+function renderloop(screen::Screen; prerender = () -> nothing)
     # Somehow errors get sometimes ignored, so we at least print them here
     try
-        t = Timer(0, interval = 1 / framerate)
+        framerate = opengl_renderloop_framerate[]
+        t = Timer(0, interval = 1 / framerate) 
         while isopen(screen)
+            if framerate != opengl_renderloop_framerate[] # update timer if framerate changed
+                framerate =  opengl_renderloop_framerate[]
+                t = Timer(0, interval = 1 / framerate)
+            end
             if opengl_renderloop_enabled[]
                 _render(screen, prerender = prerender)
             end
