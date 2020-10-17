@@ -57,7 +57,7 @@ function getter_function(io::IO, ::Fragment, sampler::Sampler, name::Symbol)
     index_t = type_string(context, sampler.values)
     sampler_t = type_string(context, sampler.colors)
 
-    return println(io, """
+    println(io, """
            in $(value_t) fragment_$(name)_index;
            uniform $(sampler_t) $(name)_texture;
 
@@ -65,11 +65,12 @@ function getter_function(io::IO, ::Fragment, sampler::Sampler, name::Symbol)
                return texture($(name)_texture, fragment_$(name)_index);
            }
            """)
+    return
 end
 
 function getter_function(io::IO, ::Vertex, sampler::Sampler, name::Symbol)
     index_t = type_string(context, sampler.values)
-    return println(io, """
+    println(io, """
            in $(index_t) $(name)_index;
            out $(index_t) fragment_$(name)_index;
 
@@ -79,21 +80,23 @@ function getter_function(io::IO, ::Vertex, sampler::Sampler, name::Symbol)
                return vec4(0);
            }
            """)
+    return
 end
 
 function getter_function(io::IO, ::Fragment, ::AbstractVector{T}, name) where {T}
     t_str = type_string(context, T)
-    return println(io, """
+    println(io, """
            in $(t_str) fragment_$(name);
            $(t_str) get_$(name)(){
                return fragment_$(name);
            }
            """)
+    return
 end
 
 function getter_function(io::IO, ::Vertex, ::AbstractVector{T}, name) where {T}
     t_str = type_string(context, T)
-    return println(io, """
+    println(io, """
            in $(t_str) $(name);
            out $(t_str) fragment_$(name);
 
@@ -102,6 +105,7 @@ function getter_function(io::IO, ::Vertex, ::AbstractVector{T}, name) where {T}
                return $(name);
            }
            """)
+    return
 end
 
 texsampler = AbstractPlotting.sampler(rand(RGBf0, 4, 4), uv)

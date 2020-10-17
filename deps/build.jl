@@ -42,7 +42,8 @@ try
         v = VersionNumber(parse(Int, m[1]), parse(Int, m[2]))
         if !(v >= v"3.3")
             open("deps.jl", "w") do io
-                return println(io, "const WORKING_OPENGL = false")
+                println(io, "const WORKING_OPENGL = false")
+                return
             end
             println(stderr,
                     "Your OpenGL version is too low! Update your driver or GPU! Version found: $v, version required: 3.3")
@@ -51,11 +52,13 @@ try
     end
 
     open("deps.jl", "w") do io
-        return println(io, "const WORKING_OPENGL = true")
+        println(io, "const WORKING_OPENGL = true")
+        return
     end
 catch e
     open("deps.jl", "w") do io
-        return println(io, "const WORKING_OPENGL = false")
+        println(io, "const WORKING_OPENGL = false")
+        return
     end
     # it would be nice to check if this is a GLFW error, but if GLFW doesn't actually load
     # we can't easily use GLFW.GLFWError. Well, GLFW error is the most likely, and

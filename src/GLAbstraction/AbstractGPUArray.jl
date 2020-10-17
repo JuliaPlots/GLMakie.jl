@@ -53,19 +53,21 @@ function setindex!(A::GPUArray{T,N}, value, indexes...) where {T,N}
 end
 
 function setindex!(A::GPUArray{T,2}, value::Vector{T}, i::Integer, range::UnitRange) where {T}
-    return (A[i, range] = reshape(value, (length(value), 1)))
+    A[i, range] = reshape(value, (length(value), 1))
+    return
 end
 
 function setindex!(A::GPUArray{T,N}, value::Array{T,N}, ranges::UnitRange...) where {T,N}
     checkbounds(A, ranges...)
     checkdimensions(value, ranges...)
     gpu_setindex!(A, value, ranges...)
-    return nothing
+    return
 end
 
 function update!(A::GPUArray{T,N}, value::AbstractArray{T2,N}) where {T,N,T2}
     return update!(A, convert(Array{T,N}, value))
 end
+
 function update!(A::GPUArray{T,N}, value::AbstractArray{T,N}) where {T,N}
     if length(A) != length(value)
         if isa(A, GLBuffer)
@@ -80,8 +82,9 @@ function update!(A::GPUArray{T,N}, value::AbstractArray{T,N}) where {T,N}
     end
     dims = map(x -> 1:x, size(A))
     A[dims...] = value
-    return nothing
+    return
 end
+
 update!(A::GPUArray, value::ShaderAbstractions.Sampler) = update!(A, value.data)
 
 function getindex(A::GPUArray{T,N}, i::Int) where {T,N}
@@ -96,7 +99,7 @@ end
 mutable struct GPUVector{T} <: GPUArray{T,1}
     buffer::Any
     size::Any
-    real_length::Any
+    real_length::Int
 end
 
 GPUVector(x::GPUArray) = GPUVector{eltype(x)}(x, size(x), length(x))
@@ -130,6 +133,7 @@ function grow_dimensions(real_length::Int, _size::Int, additonal_size::Int, grow
     new_dim = round(Int, real_length * growfactor)
     return max(new_dim, additonal_size + _size)
 end
+
 function Base.push!(v::GPUVector{T}, x::AbstractVector{T}) where {T}
     lv, lx = length(v), length(x)
     if (v.real_length < lv + lx)
@@ -140,6 +144,7 @@ function Base.push!(v::GPUVector{T}, x::AbstractVector{T}) where {T}
     v.size = (lv + lx,)
     return v
 end
+
 push!(v::GPUVector{T}, x::T) where {T} = push!(v, [x])
 push!(v::GPUVector{T}, x::T...) where {T} = push!(v, [x...])
 append!(v::GPUVector{T}, x::Vector{T}) where {T} = push!(v, x)
@@ -158,11 +163,13 @@ function resize!(v::GPUVector, newlength::Int)
     end
     resize!(v.buffer, grow_dimensions(v.real_length, length(v), newlength - length(v)))
     v.size = (newlength,)
-    return v.real_length = length(v.buffer)
+    v.real_length = length(v.buffer)
+    return
 end
 function grow_at(v::GPUVector, index::Int, amount::Int)
     resize!(v, length(v) + amount)
-    return copy!(v, index, v, index + amount, amount)
+    copy!(v, index, v, index + amount, amount)
+    return
 end
 
 function splice!(v::GPUVector{T}, index::UnitRange, x::Vector=T[]) where {T}
@@ -175,7 +182,7 @@ function splice!(v::GPUVector{T}, index::UnitRange, x::Vector=T[]) where {T}
     v.real_length = length(buffer)
     v.size = (v.real_length,)
     copy!(x, 1, buffer, first(index), length(x)) # copy contents of insertion vector
-    return nothing
+    return
 end
 splice!(v::GPUVector{T}, index::Int, x::T) where {T} = v[index] = x
 splice!(v::GPUVector{T}, index::Int, x::Vector=T[]) where {T} = splice!(v, index:index, map(T, x))
@@ -197,14 +204,14 @@ function copy!(a::GPUArray, a_offset::Int, b::GPUArray, b_offset::Int, amount::I
     return _copy!(a, a_offset, b, b_offset, amount)
 end
 
-#don't overwrite Base.copy! with a::Vector, b::Vector
+# don't overwrite Base.copy! with a::Vector, b::Vector
 function _copy!(a::Union{Vector,GPUArray}, a_offset::Int, b::Union{Vector,GPUArray}, b_offset::Int,
                 amount::Int)
-    (amount <= 0) && return nothing
+    (amount <= 0) && return
     @assert a_offset > 0 && (a_offset - 1) + amount <= length(a) "a_offset $a_offset, amount $amount, lengtha $(length(a))"
     @assert b_offset > 0 && (b_offset - 1) + amount <= length(b) "b_offset $b_offset, amount $amount, lengthb $(length(b))"
     unsafe_copy!(a, a_offset, b, b_offset, amount)
-    return nothing
+    return
 end
 
 # Interface:

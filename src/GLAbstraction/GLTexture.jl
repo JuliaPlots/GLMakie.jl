@@ -417,10 +417,10 @@ function map_texture_paramers(s::Symbol)
     return error("$s is not a valid texture parameter")
 end
 
-function TextureParameters(T, NDim; minfilter=T <: Integer ? :nearest : :linear, magfilter=minfilter, # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification
-                           x_repeat=:clamp_to_edge, #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s
-                           y_repeat=x_repeat, #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t
-                           z_repeat=x_repeat, #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r
+function TextureParameters(T, NDim; minfilter=T <: Integer ? :nearest : :linear, magfilter=minfilter, # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification # magnification
+                           x_repeat=:clamp_to_edge, #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s #wrap_s
+                           y_repeat=x_repeat, #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t #wrap_t
+                           z_repeat=x_repeat, #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r #wrap_r
                            anisotropic=1.0f0)
     T <: Integer &&
         (minfilter == :linear || magfilter == :linear) &&
