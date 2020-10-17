@@ -1,7 +1,8 @@
 module GLVisualize
 
 using ..GLAbstraction
-using AbstractPlotting: RaymarchAlgorithm, IsoValue, Absorption, MaximumIntensityProjection, AbsorptionRGBA, IndexedAbsorptionRGBA
+using AbstractPlotting: RaymarchAlgorithm, IsoValue, Absorption, MaximumIntensityProjection, AbsorptionRGBA,
+                        IndexedAbsorptionRGBA
 
 using ..GLMakie.GLFW
 using ModernGL
@@ -24,7 +25,6 @@ import ..GLMakie: get_texture!
 const GLBoundingBox = FRect3D
 
 using ..GLMakie: assetpath, loadasset
-
 
 include("visualize_interface.jl")
 export visualize # Visualize an object

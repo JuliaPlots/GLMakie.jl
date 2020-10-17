@@ -21,8 +21,7 @@ for name in names(AbstractPlotting)
     @eval import AbstractPlotting: $(name)
 end
 
-struct GLBackend <: AbstractPlotting.AbstractBackend
-end
+struct GLBackend <: AbstractPlotting.AbstractBackend end
 
 """
 returns path relative to the assets folder
@@ -35,7 +34,7 @@ Loads a file from the asset folder
 function loadasset(folders...; kw_args...)
     path = assetpath(folders...)
     isfile(path) || isdir(path) || error("Could not locate file at $path")
-    load(path; kw_args...)
+    return load(path; kw_args...)
 end
 
 export assetpath, loadasset
@@ -54,7 +53,7 @@ else
 end
 
 if WORKING_OPENGL
-     # don't put this into try catch, to not mess with normal errors
+    # don't put this into try catch, to not mess with normal errors
     include("gl_backend.jl")
 end
 
@@ -63,7 +62,7 @@ function activate!(use_display=true)
     AbstractPlotting.register_backend!(b)
     AbstractPlotting.set_glyph_resolution!(AbstractPlotting.High)
     AbstractPlotting.current_backend[] = b
-    AbstractPlotting.inline!(!use_display)
+    return AbstractPlotting.inline!(!use_display)
 end
 
 function __init__()

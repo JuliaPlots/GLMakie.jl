@@ -20,7 +20,7 @@ try
     using GLFW
 catch e
     open("deps.jl", "w") do io
-        println(io, "const WORKING_OPENGL = false")
+        return println(io, "const WORKING_OPENGL = false")
     end
     # it would be nice to check if this is a GLFW error, but if GLFW doesn't actually load
     # we can't easily use GLFW.GLFWError. Well, GLFW error is the most likely, and
@@ -31,7 +31,7 @@ end
 try
     using ModernGL
     # Create a windowed mode window and its OpenGL context
-    window = GLFW.Window(resolution = (10, 10), major = 3, minor = 3, visible = false, focus = false)
+    window = GLFW.Window(resolution=(10, 10), major=3, minor=3, visible=false, focus=false)
     glversion = unsafe_string(glGetString(GL_VERSION))
     m = match(r"(\d+)\.(\d+)(.\d+)?\s", glversion)
     # I don't really trust that all vendors have a version that matches
@@ -42,19 +42,20 @@ try
         v = VersionNumber(parse(Int, m[1]), parse(Int, m[2]))
         if !(v >= v"3.3")
             open("deps.jl", "w") do io
-                println(io, "const WORKING_OPENGL = false")
+                return println(io, "const WORKING_OPENGL = false")
             end
-            println(stderr, "Your OpenGL version is too low! Update your driver or GPU! Version found: $v, version required: 3.3")
+            println(stderr,
+                    "Your OpenGL version is too low! Update your driver or GPU! Version found: $v, version required: 3.3")
             error(install_tips)
         end
     end
 
     open("deps.jl", "w") do io
-        println(io, "const WORKING_OPENGL = true")
+        return println(io, "const WORKING_OPENGL = true")
     end
 catch e
     open("deps.jl", "w") do io
-        println(io, "const WORKING_OPENGL = false")
+        return println(io, "const WORKING_OPENGL = false")
     end
     # it would be nice to check if this is a GLFW error, but if GLFW doesn't actually load
     # we can't easily use GLFW.GLFWError. Well, GLFW error is the most likely, and

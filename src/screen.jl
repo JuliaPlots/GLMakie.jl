@@ -1,7 +1,7 @@
 const ScreenID = UInt8
 const ZIndex = Int
 # ID, Area, clear, is visible, background color
-const ScreenArea = Tuple{ScreenID, Scene}
+const ScreenArea = Tuple{ScreenID,Scene}
 
 abstract type GLScreen <: AbstractScreen end
 
@@ -9,31 +9,22 @@ mutable struct Screen <: GLScreen
     glscreen::GLFW.Window
     framebuffer::GLFramebuffer
     rendertask::RefValue{Task}
-    screen2scene::Dict{WeakRef, ScreenID}
+    screen2scene::Dict{WeakRef,ScreenID}
     screens::Vector{ScreenArea}
-    renderlist::Vector{Tuple{ZIndex, ScreenID, RenderObject}}
-    cache::Dict{UInt64, RenderObject}
-    cache2plot::Dict{UInt16, AbstractPlot}
-    framecache::Tuple{Matrix{RGB{N0f8}}, Matrix{RGB{N0f8}}}
-    displayed_scene::Union{Scene, Nothing}
+    renderlist::Vector{Tuple{ZIndex,ScreenID,RenderObject}}
+    cache::Dict{UInt64,RenderObject}
+    cache2plot::Dict{UInt16,AbstractPlot}
+    framecache::Tuple{Matrix{RGB{N0f8}},Matrix{RGB{N0f8}}}
+    displayed_scene::Union{Scene,Nothing}
     render_tick::Node{Nothing}
-    function Screen(
-            glscreen::GLFW.Window,
-            framebuffer::GLFramebuffer,
-            rendertask::RefValue{Task},
-            screen2scene::Dict{WeakRef, ScreenID},
-            screens::Vector{ScreenArea},
-            renderlist::Vector{Tuple{ZIndex, ScreenID, RenderObject}},
-            cache::Dict{UInt64, RenderObject},
-            cache2plot::Dict{UInt16, AbstractPlot},
-        )
+    function Screen(glscreen::GLFW.Window, framebuffer::GLFramebuffer, rendertask::RefValue{Task},
+                    screen2scene::Dict{WeakRef,ScreenID}, screens::Vector{ScreenArea},
+                    renderlist::Vector{Tuple{ZIndex,ScreenID,RenderObject}}, cache::Dict{UInt64,RenderObject},
+                    cache2plot::Dict{UInt16,AbstractPlot})
         s = size(framebuffer)
-        obj = new(
-            glscreen, framebuffer, rendertask, screen2scene,
-            screens, renderlist, cache, cache2plot,
-            (Matrix{RGB{N0f8}}(undef, s), Matrix{RGB{N0f8}}(undef, reverse(s))),
-            nothing, Node(nothing)
-        )
+        return obj = new(glscreen, framebuffer, rendertask, screen2scene, screens, renderlist, cache,
+                         cache2plot, (Matrix{RGB{N0f8}}(undef, s), Matrix{RGB{N0f8}}(undef, reverse(s))),
+                         nothing, Node(nothing))
     end
 end
 
@@ -53,7 +44,7 @@ function insertplots!(screen::GLScreen, scene::Scene)
     for elem in scene.plots
         insert!(screen, scene, elem)
     end
-    foreach(s-> insertplots!(screen, s), scene.children)
+    return foreach(s -> insertplots!(screen, s), scene.children)
 end
 
 function Base.delete!(screen::Screen, scene::Scene, plot::AbstractPlot)
@@ -62,23 +53,23 @@ function Base.delete!(screen::Screen, scene::Scene, plot::AbstractPlot)
         delete!.(Ref(screen), Ref(scene), AbstractPlotting.flatten_plots(plot))
     else
         renderobject = get(screen.cache, objectid(plot)) do
-            error("Could not find $(typeof(subplot)) in current GLMakie screen!")
+            return error("Could not find $(typeof(subplot)) in current GLMakie screen!")
         end
-        filter!(x-> x[3] !== renderobject, screen.renderlist)
+        filter!(x -> x[3] !== renderobject, screen.renderlist)
     end
 end
 
 function Base.empty!(screen::GLScreen)
     empty!(screen.renderlist)
     empty!(screen.screen2scene)
-    empty!(screen.screens)
+    return empty!(screen.screens)
 end
 
 function destroy!(screen::Screen)
     empty!(screen)
     empty!(screen.cache)
     empty!(screen.cache2plot)
-    destroy!(screen.glscreen)
+    return destroy!(screen.glscreen)
 end
 
 function Base.resize!(window::GLFW.Window, resolution...)
@@ -114,7 +105,7 @@ function Base.resize!(screen::Screen, w, h)
     nw = to_native(screen)
     resize!(nw, w, h)
     fb = screen.framebuffer
-    resize!(fb, (w, h))
+    return resize!(fb, (w, h))
 end
 
 function AbstractPlotting.backend_display(screen::Screen, scene::Scene)
@@ -137,18 +128,18 @@ function to_jl_layout!(A, B)
                 x = clamp(channel, 0.0, 1.0)
                 return ifelse(isfinite(x), x, 0.0)
             end
-            @inbounds B[n-j, i] = c
+            @inbounds B[n - j, i] = c
         end
     end
     return B
 end
 
-function fast_color_data!(dest::Array{RGB{N0f8}, 2}, source::Texture{T, 2}) where T
+function fast_color_data!(dest::Array{RGB{N0f8},2}, source::Texture{T,2}) where {T}
     GLAbstraction.bind(source)
     glPixelStorei(GL_PACK_ALIGNMENT, 1)
     glGetTexImage(source.texturetype, 0, GL_RGB, GL_UNSIGNED_BYTE, dest)
     GLAbstraction.bind(source, 0)
-    nothing
+    return nothing
 end
 
 """
@@ -196,12 +187,11 @@ function AbstractPlotting.colorbuffer(screen::Screen)
     end
 end
 
-
 Base.isopen(x::Screen) = isopen(x.glscreen)
 function Base.push!(screen::GLScreen, scene::Scene, robj)
     # filter out gc'ed elements
     filter!(screen.screen2scene) do (k, v)
-        k.value != nothing
+        return k.value != nothing
     end
     screenid = get!(screen.screen2scene, WeakRef(scene)) do
         id = length(screen.screens) + 1
@@ -214,21 +204,14 @@ end
 
 to_native(x::Screen) = x.glscreen
 
-
 """
 OpenGL shares all data containers between shared contexts, but not vertexarrays -.-
 So to share a robjs between a context, we need to rewrap the vertexarray into a new one for that
 specific context.
 """
-function rewrap(robj::RenderObject{Pre}) where Pre
-    RenderObject{Pre}(
-        robj.main,
-        robj.uniforms,
-        GLVertexArray(robj.vertexarray),
-        robj.prerenderfunction,
-        robj.postrenderfunction,
-        robj.boundingbox,
-    )
+function rewrap(robj::RenderObject{Pre}) where {Pre}
+    return RenderObject{Pre}(robj.main, robj.uniforms, GLVertexArray(robj.vertexarray),
+                             robj.prerenderfunction, robj.postrenderfunction, robj.boundingbox)
 end
 
 const GLOBAL_GL_SCREEN = Ref{Screen}()
@@ -236,8 +219,8 @@ const GLOBAL_GL_SCREEN = Ref{Screen}()
 """
 Julia 1.0.3 doesn't have I:J, so we copy the implementation from 1.1 under a new name:
 """
-function irange(I::CartesianIndex{N}, J::CartesianIndex{N}) where N
-    CartesianIndices(map((i,j) -> i:j, Tuple(I), Tuple(J)))
+function irange(I::CartesianIndex{N}, J::CartesianIndex{N}) where {N}
+    return CartesianIndices(map((i, j) -> i:j, Tuple(I), Tuple(J)))
 end
 
 """
@@ -246,7 +229,7 @@ Loads the makie loading icon and embedds it in an image the size of resolution
 function get_loading_image(resolution)
     icon = Matrix{N0f8}(undef, 192, 192)
     open(GLMakie.assetpath("loading.bin")) do io
-        read!(io, icon)
+        return read!(io, icon)
     end
     img = zeros(RGBA{N0f8}, resolution...)
     center = resolution .÷ 2
@@ -279,15 +262,11 @@ function display_loading_image(screen::Screen)
     else
         error("loading_image needs to be Matrix{RGBA{N0f8}} with size(loading_image) == resolution")
     end
-
 end
 
 const gl_screens = GLFW.Window[]
 
-function Screen(;
-        resolution = (10, 10), visible = false, title = WINDOW_CONFIG.title[],
-        kw_args...
-    )
+function Screen(; resolution=(10, 10), visible=false, title=WINDOW_CONFIG.title[], kw_args...)
     if !isempty(gl_screens)
         for elem in gl_screens
             isopen(elem) && destroy!(elem)
@@ -296,31 +275,17 @@ function Screen(;
     end
     # Somehow this constant isn't wrapped by glfw
     GLFW_FOCUS_ON_SHOW = 0x0002000C
-    windowhints = [
-        (GLFW.SAMPLES,      0),
-        (GLFW.DEPTH_BITS,   0),
+    windowhints = [(GLFW.SAMPLES, 0), (GLFW.DEPTH_BITS, 0),
 
-        # SETTING THE ALPHA BIT IS REALLY IMPORTANT ON OSX, SINCE IT WILL JUST KEEP SHOWING A BLACK SCREEN
-        # WITHOUT ANY ERROR -.-
-        (GLFW.ALPHA_BITS,   8),
-        (GLFW.RED_BITS,     8),
-        (GLFW.GREEN_BITS,   8),
-        (GLFW.BLUE_BITS,    8),
+                   # SETTING THE ALPHA BIT IS REALLY IMPORTANT ON OSX, SINCE IT WILL JUST KEEP SHOWING A BLACK SCREEN
+                   # WITHOUT ANY ERROR -.-
+                   (GLFW.ALPHA_BITS, 8), (GLFW.RED_BITS, 8), (GLFW.GREEN_BITS, 8), (GLFW.BLUE_BITS, 8),
+                   (GLFW.STENCIL_BITS, 0), (GLFW.AUX_BUFFERS, 0),
+                   (GLFW_FOCUS_ON_SHOW, WINDOW_CONFIG.focus_on_show[]),
+                   (GLFW.DECORATED, WINDOW_CONFIG.decorated[]), (GLFW.FLOATING, WINDOW_CONFIG.float[])]
 
-        (GLFW.STENCIL_BITS, 0),
-        (GLFW.AUX_BUFFERS,  0),
-        (GLFW_FOCUS_ON_SHOW, WINDOW_CONFIG.focus_on_show[]),
-        (GLFW.DECORATED, WINDOW_CONFIG.decorated[]),
-        (GLFW.FLOATING, WINDOW_CONFIG.float[]),
-    ]
-
-    window = GLFW.Window(
-        name = title, resolution = (10, 10), # 10, because smaller sizes seem to error on some platforms
-        windowhints = windowhints,
-        visible = false,
-        focus = false,
-        kw_args...
-    )
+    window = GLFW.Window(name=title, resolution=(10, 10), # 10, because smaller sizes seem to error on some platforms
+                         windowhints=windowhints, visible=false, focus=false, kw_args...)
     GLFW.SetWindowIcon(window, AbstractPlotting.icon())
 
     # tell GLAbstraction that we created a new context.
@@ -332,20 +297,14 @@ function Screen(;
     resize!(window, resolution...)
     fb = GLFramebuffer(resolution)
 
-    screen = Screen(
-        window, fb,
-        RefValue{Task}(),
-        Dict{WeakRef, ScreenID}(),
-        ScreenArea[],
-        Tuple{ZIndex, ScreenID, RenderObject}[],
-        Dict{UInt64, RenderObject}(),
-        Dict{UInt16, AbstractPlot}(),
-    )
+    screen = Screen(window, fb, RefValue{Task}(), Dict{WeakRef,ScreenID}(), ScreenArea[],
+                    Tuple{ZIndex,ScreenID,RenderObject}[], Dict{UInt64,RenderObject}(),
+                    Dict{UInt16,AbstractPlot}())
 
     GLFW.SetWindowRefreshCallback(window, window -> begin
-        render_frame(screen)
-        GLFW.SwapBuffers(window)
-    end)
+                                      render_frame(screen)
+                                      GLFW.SwapBuffers(window)
+                                  end)
     screen.rendertask[] = @async((WINDOW_CONFIG.renderloop[])(screen))
     # display window if visible!
     if visible
@@ -366,7 +325,7 @@ function global_gl_screen()
     return screen
 end
 
-function global_gl_screen(resolution::Tuple, visibility::Bool, tries = 1)
+function global_gl_screen(resolution::Tuple, visibility::Bool, tries=1)
     # ugly but easy way to find out if we create new screen.
     # could just be returned by global_gl_screen, but dont want to change the API
     isold = isassigned(GLOBAL_GL_SCREEN) && isopen(GLOBAL_GL_SCREEN[])
@@ -386,10 +345,10 @@ function global_gl_screen(resolution::Tuple, visibility::Bool, tries = 1)
     end
     # show loading image on fresh screen
     isold || display_loading_image(screen)
-    screen
+    return screen
 end
 
-function pick_native(screen::Screen, xy::Vec{2, Float64})
+function pick_native(screen::Screen, xy::Vec{2,Float64})
     isopen(screen) || return SelectionID{Int}(0, 0)
     sid = Base.RefValue{SelectionID{UInt32}}()
     window_size = widths(screen)
@@ -406,7 +365,7 @@ function pick_native(screen::Screen, xy::Vec{2, Float64})
     return return SelectionID{Int}(0, 0)
 end
 
-function pick_native(screen::Screen, xy::Vec{2, Float64}, range::Float64)
+function pick_native(screen::Screen, xy::Vec{2,Float64}, range::Float64)
     isopen(screen) || return SelectionID{Int}(0, 0)
     window_size = widths(screen)
     fb = screen.framebuffer
@@ -417,15 +376,16 @@ function pick_native(screen::Screen, xy::Vec{2, Float64}, range::Float64)
     w, h = window_size
     x0, y0 = max.(1, floor.(Int, xy .- range))
     x1, y1 = min.([w, h], floor.(Int, xy .+ range))
-    dx = x1 - x0; dy = y1 - y0
+    dx = x1 - x0
+    dy = y1 - y0
     sid = Matrix{SelectionID{UInt32}}(undef, dx, dy)
     glReadPixels(x0, y0, dx, dy, buff.format, buff.pixeltype, sid)
 
     min_dist = range^2 # squared distance
     id = SelectionID{Int}(0, 0)
-    x, y =  xy .+ 1 .- Vec2f0(x0, y0)
+    x, y = xy .+ 1 .- Vec2f0(x0, y0)
     for i in 1:dx, j in 1:dy
-        d = (x-i)^2 + (y-j)^2
+        d = (x - i)^2 + (y - j)^2
         if (d < min_dist) && (sid[i, j][2] < 0x3f800000)
             min_dist = d
             id = convert(SelectionID{Int}, sid[i, j])
@@ -434,7 +394,7 @@ function pick_native(screen::Screen, xy::Vec{2, Float64}, range::Float64)
     return id
 end
 
-function AbstractPlotting.pick(scene::SceneLike, screen::Screen, xy::Vec{2, Float64})
+function AbstractPlotting.pick(scene::SceneLike, screen::Screen, xy::Vec{2,Float64})
     sid = pick_native(screen, xy)
     if haskey(screen.cache2plot, sid.id)
         plot = screen.cache2plot[sid.id]
@@ -443,7 +403,7 @@ function AbstractPlotting.pick(scene::SceneLike, screen::Screen, xy::Vec{2, Floa
         return (nothing, 0)
     end
 end
-function AbstractPlotting.pick(scene::SceneLike, screen::Screen, xy::Vec{2, Float64}, range::Float64)
+function AbstractPlotting.pick(scene::SceneLike, screen::Screen, xy::Vec{2,Float64}, range::Float64)
     sid = pick_native(screen, xy, range)
     if haskey(screen.cache2plot, sid.id)
         plot = screen.cache2plot[sid.id]
@@ -452,7 +412,6 @@ function AbstractPlotting.pick(scene::SceneLike, screen::Screen, xy::Vec{2, Floa
         return (nothing, 0)
     end
 end
-
 
 function AbstractPlotting.pick(screen::Screen, rect::IRect2D)
     window_size = widths(screen)
@@ -466,12 +425,12 @@ function AbstractPlotting.pick(screen::Screen, rect::IRect2D)
     sid = zeros(SelectionID{UInt32}, widths(rect)...)
     if x > 0 && y > 0 && x <= w && y <= h
         glReadPixels(x, y, rw, rh, buff.format, buff.pixeltype, sid)
-        sid = filter(x -> x.id < 0x3f800000,sid)
+        sid = filter(x -> x.id < 0x3f800000, sid)
         return map(unique(vec(SelectionID{Int}.(sid)))) do sid
-            (screen.cache2plot[sid.id], sid.index)
+            return (screen.cache2plot[sid.id], sid.index)
         end
     end
-    return Tuple{AbstractPlot, Int}[]
+    return Tuple{AbstractPlot,Int}[]
 end
 
 pollevents(::GLScreen) = nothing

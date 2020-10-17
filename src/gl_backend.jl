@@ -4,7 +4,7 @@ include("GLAbstraction/GLAbstraction.jl")
 
 using .GLAbstraction
 
-const atlas_texture_cache = Dict{Any, Tuple{Texture{Float16, 2}, Function}}()
+const atlas_texture_cache = Dict{Any,Tuple{Texture{Float16,2},Function}}()
 
 function get_texture!(atlas)
     # clean up dead context!
@@ -17,17 +17,12 @@ function get_texture!(atlas)
         end
     end
     tex, func = get!(atlas_texture_cache, GLAbstraction.current_context()) do
-        tex = Texture(
-                atlas.data,
-                minfilter = :linear,
-                magfilter = :linear,
-                # TODO: Consider alternatives to using the builtin anisotropic
-                # samplers for signed distance fields; the anisotropic
-                # filtering should happen *after* the SDF thresholding, but
-                # with the builtin sampler it happens before.
-                anisotropic = 16f0,
-                mipmap = true
-        )
+        tex = Texture(atlas.data, minfilter=:linear, magfilter=:linear,
+                      # TODO: Consider alternatives to using the builtin anisotropic
+                      # samplers for signed distance fields; the anisotropic
+                      # filtering should happen *after* the SDF thresholding, but
+                      # with the builtin sampler it happens before.
+                      anisotropic=16.0f0, mipmap=true)
         # update the texture, whenever a new font is added to the atlas
         function callback(distance_field, rectangle)
             ctx = tex.context
@@ -68,7 +63,7 @@ Buffers the `scene` in an image buffer.
 function scene2image(scene::Scene)
     screen = global_gl_screen(size(scene), false)
     AbstractPlotting.backend_display(screen, scene)
-    AbstractPlotting.colorbuffer(screen)
+    return AbstractPlotting.colorbuffer(screen)
 end
 
 raw_io(io::IO) = io
@@ -76,10 +71,10 @@ raw_io(io::IOContext) = raw_io(io.io)
 
 function AbstractPlotting.backend_show(::GLBackend, io::IO, m::MIME"image/png", scene::Scene)
     img = scene2image(scene)
-    FileIO.save(FileIO.Stream(FileIO.format"PNG", raw_io(io)), img)
+    return FileIO.save(FileIO.Stream(FileIO.format"PNG", raw_io(io)), img)
 end
 
 function AbstractPlotting.backend_show(::GLBackend, io::IO, m::MIME"image/jpeg", scene::Scene)
     img = scene2image(scene)
-    FileIO.save(FileIO.Stream(FileIO.format"JPEG", raw_io(io)), img)
+    return FileIO.save(FileIO.Stream(FileIO.format"JPEG", raw_io(io)), img)
 end

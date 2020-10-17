@@ -53,15 +53,9 @@ function renderloop(screen; framerate=WINDOW_CONFIG.framerate[])
     end
 end
 
-const WINDOW_CONFIG = (renderloop = Ref{Function}(renderloop),
-    vsync = Ref(false),
-    framerate = Ref(30.0),
-    float = Ref(false),
-    pause_rendering = Ref(false),
-    focus_on_show = Ref(false),
-    decorated = Ref(true),
-    title = Ref("Makie"),
-    exit_renderloop = Ref(false),)
+const WINDOW_CONFIG = (renderloop=Ref{Function}(renderloop), vsync=Ref(false), framerate=Ref(30.0),
+                       float=Ref(false), pause_rendering=Ref(false), focus_on_show=Ref(false),
+                       decorated=Ref(true), title=Ref("Makie"), exit_renderloop=Ref(false))
 
 """
     set_window_config!(;
@@ -128,10 +122,7 @@ function render_frame(screen::Screen; resize_buffers=true)
     # prepare stencil (for sub-scenes)
     glEnable(GL_STENCIL_TEST)
     glBindFramebuffer(GL_FRAMEBUFFER, fb.id[1]) # color framebuffer
-    glDrawBuffers(4, [
-        GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1,
-        GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3
-    ])
+    glDrawBuffers(4, [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3])
     glEnable(GL_STENCIL_TEST)
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
     glStencilMask(0xff)
@@ -145,7 +136,6 @@ function render_frame(screen::Screen; resize_buffers=true)
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
     glStencilMask(0x00)
     GLAbstraction.render(screen, true, true)
-
 
     # SSAO - calculate occlusion
     # glDrawBuffer(GL_COLOR_ATTACHMENT4)  # occlusion buffer
@@ -177,7 +167,7 @@ function render_frame(screen::Screen; resize_buffers=true)
         uniforms = fb.postprocess[2].uniforms
         uniforms[:blur_range][] = Int32(to_value(get(SSAO, :blur, 2)))
 
-            # use stencil to select one scene
+        # use stencil to select one scene
         glStencilFunc(GL_EQUAL, screenid, 0xff)
         GLAbstraction.render(fb.postprocess[2])
         # end

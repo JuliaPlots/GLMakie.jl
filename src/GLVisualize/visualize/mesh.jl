@@ -1,5 +1,5 @@
 
-function _default(mesh::TOrSignal{M}, s::Style, data::Dict) where M <: GeometryBasics.Mesh
+function _default(mesh::TOrSignal{M}, s::Style, data::Dict) where {M<:GeometryBasics.Mesh}
     return @gen_defaults! data begin
         shading = true
         main = mesh
@@ -9,9 +9,7 @@ function _default(mesh::TOrSignal{M}, s::Style, data::Dict) where M <: GeometryB
         matcap = nothing => Texture
         fetch_pixel = false
         uv_scale = Vec2f0(1)
-        shader = GLVisualizeShader(
-            "fragment_output.frag", "util.vert", "standard.vert", "standard.frag",
-            view = Dict("light_calc" => light_calc(shading))
-        )
+        shader = GLVisualizeShader("fragment_output.frag", "util.vert", "standard.vert", "standard.frag",
+                                   view=Dict("light_calc" => light_calc(shading)))
     end
 end

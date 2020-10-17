@@ -75,7 +75,8 @@ export cardinality              # returns the cardinality of the elements of a b
 
 export Style                    # Style Type, which is used to choose different visualization/editing styles via multiple dispatch
 export mergedefault!            # merges a style dict via a given style
-export TOrSignal, VecOrSignal, ArrayOrSignal, MatOrSignal, VolumeOrSignal, ArrayTypes, VectorTypes, MatTypes, VolumeTypes
+export TOrSignal, VecOrSignal, ArrayOrSignal, MatOrSignal, VolumeOrSignal, ArrayTypes, VectorTypes, MatTypes,
+       VolumeTypes
 export MouseButton, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT
 
 include("GLExtendedFunctions.jl")
@@ -98,7 +99,6 @@ export toglsltype_string        # infers a glsl type string from a julia type. E
 # Also exports Macro generated GLSL alike aliases for Float32 Matrices and Vectors
 # only difference to GLSL: first character is uppercase uppercase
 export gl_convert
-
 
 include("GLRender.jl")
 export render  #renders arbitrary objects

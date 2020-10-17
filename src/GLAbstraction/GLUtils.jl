@@ -1,9 +1,9 @@
 function print_with_lines(out::IO, text::AbstractString)
     io = IOBuffer()
-    for (i,line) in enumerate(split(text, "\n"))
+    for (i, line) in enumerate(split(text, "\n"))
         println(io, @sprintf("%-4d: %s", i, line))
     end
-    write(out, take!(io))
+    return write(out, take!(io))
 end
 print_with_lines(text::AbstractString) = print_with_lines(stdout, text)
 
@@ -13,13 +13,14 @@ Usage pattern:
 visualize(::Style{:Default}, ...)           = do something
 visualize(::Style{:MyAwesomeNewStyle}, ...) = do something different
 """
-struct Style{StyleValue}
-end
+struct Style{StyleValue} end
 Style(x::Symbol) = Style{x}()
 Style() = Style{:Default}()
-mergedefault!(style::Style{S}, styles, customdata) where {S} = merge!(copy(styles[S]), Dict{Symbol, Any}(customdata))
+function mergedefault!(style::Style{S}, styles, customdata) where {S}
+    return merge!(copy(styles[S]), Dict{Symbol,Any}(customdata))
+end
 macro style_str(string)
-    Style{Symbol(string)}
+    return Style{Symbol(string)}
 end
 export @style_str
 
@@ -36,7 +37,7 @@ macro materialize(dict_splat)
         $dict_instance = $dict # handle if dict is not a variable but an expression
         $kdblock
     end
-    esc(expr)
+    return esc(expr)
 end
 
 """
@@ -52,7 +53,7 @@ macro materialize!(dict_splat)
         $dict_instance = $dict # handle if dict is not a variable but an expression
         $kdblock
     end
-    esc(expr)
+    return esc(expr)
 end
 
 """
@@ -60,13 +61,12 @@ Needed to match the lazy gl_convert exceptions.
     `Target`: targeted OpenGL type
     `x`: the variable that gets matched
 """
-matches_target(::Type{Target}, x::T) where {Target, T} = applicable(gl_convert, Target, x) || T <: Target  # it can be either converted to Target, or it's already the target
-matches_target(::Type{Target}, x::Node{T}) where {Target, T} = applicable(gl_convert, Target, x)  || T <: Target
+matches_target(::Type{Target}, x::T) where {Target,T} = applicable(gl_convert, Target, x) || T <: Target  # it can be either converted to Target, or it's already the target
+matches_target(::Type{Target}, x::Node{T}) where {Target,T} = applicable(gl_convert, Target, x) || T <: Target
 matches_target(::Function, x) = true
 matches_target(::Function, x::Nothing) = false
 
 signal_convert(T1, y::T2) where {T2<:Node} = lift(convert, Node(T1), y)
-
 
 """
 Takes a dict and inserts defaults, if not already available.
@@ -92,13 +92,14 @@ macro gen_defaults!(dict, args)
     dictsym = gensym()
     return_expression = Expr(:block)
     push!(return_expression.args, :($dictsym = $dict)) # dict could also be an expression, so we need to asign it to a variable at the beginning
-    push!(return_expression.args, :(gl_convert_targets = get!($dictsym, :gl_convert_targets, Dict{Symbol, Any}()))) # exceptions for glconvert.
-    push!(return_expression.args, :(doc_strings = get!($dictsym, :doc_string, Dict{Symbol, Any}()))) # exceptions for glconvert.
+    push!(return_expression.args,
+          :(gl_convert_targets = get!($dictsym, :gl_convert_targets, Dict{Symbol,Any}()))) # exceptions for glconvert.
+    push!(return_expression.args, :(doc_strings = get!($dictsym, :doc_string, Dict{Symbol,Any}()))) # exceptions for glconvert.
     # @gen_defaults can be used multiple times, so we need to reuse gl_convert_targets if already in here
     for (i, elem) in enumerate(tuple_list)
         opengl_convert_target = :() # is optional, so first is an empty expression
-        convert_target        = :() # is optional, so first is an empty expression
-        doc_strings           = :()
+        convert_target = :() # is optional, so first is an empty expression
+        doc_strings = :()
         if Meta.isexpr(elem, :(=))
             key_name, value_expr = elem.args
             if isa(key_name, Expr) && key_name.head == :(::) # we need to convert to a julia type
@@ -130,11 +131,12 @@ macro gen_defaults!(dict, args)
                 end
             end
             expr = quote
-                $key_name = if haskey($dictsym, $key_sym)
-                    $dictsym[$key_sym]
-                else
-                    $value_expr # in case that evaluating value_expr is expensive, we use a branch instead of get(dict, key, default)
-                end
+                $key_name =
+                    if haskey($dictsym, $key_sym)
+                        $dictsym[$key_sym]
+                    else
+                        $value_expr # in case that evaluating value_expr is expensive, we use a branch instead of get(dict, key, default)
+                    end
                 $dictsym[$key_sym] = $convert_target
                 $opengl_convert_target
                 $doc_strings
@@ -144,35 +146,35 @@ macro gen_defaults!(dict, args)
     end
     #push!(return_expression.args, :($dictsym[:gl_convert_targets] = gl_convert_targets)) #just pass the targets via the dict
     push!(return_expression.args, :($dictsym)) #return dict
-    esc(return_expression)
+    return esc(return_expression)
 end
 export @gen_defaults!
 
 makesignal(s::Node) = s
 makesignal(v) = Node(v)
 
-@inline const_lift(f::Union{DataType, Type, Function}, inputs...) = lift(f, map(makesignal, inputs)...)
+@inline const_lift(f::Union{DataType,Type,Function}, inputs...) = lift(f, map(makesignal, inputs)...)
 export const_lift
 
 isnotempty(x) = !isempty(x)
-AND(a,b) = a&&b
-OR(a,b) = a||b
+AND(a, b) = a && b
+OR(a, b) = a || b
 
 #Meshtype holding native OpenGL data.
-struct NativeMesh{MeshType <: GeometryBasics.Mesh}
-    data::Dict{Symbol, Any}
+struct NativeMesh{MeshType<:GeometryBasics.Mesh}
+    data::Dict{Symbol,Any}
 end
 
 export NativeMesh
 
-NativeMesh(m::T) where {T <: GeometryBasics.Mesh} = NativeMesh{T}(m)
-NativeMesh(m::Observable{T}) where {T <: GeometryBasics.Mesh} = NativeMesh{T}(m)
+NativeMesh(m::T) where {T<:GeometryBasics.Mesh} = NativeMesh{T}(m)
+NativeMesh(m::Observable{T}) where {T<:GeometryBasics.Mesh} = NativeMesh{T}(m)
 
 convert_texcoordinates(uv::AbstractVector{Vec2f0}) = uv
 convert_texcoordinates(x::AbstractVector{<:Number}) = convert(Vector{Float32}, x)
 
-function NativeMesh{T}(mesh::T) where T <: GeometryBasics.Mesh
-    result = Dict{Symbol, Any}()
+function NativeMesh{T}(mesh::T) where {T<:GeometryBasics.Mesh}
+    result = Dict{Symbol,Any}()
     attribs = GeometryBasics.attributes(mesh)
     result[:faces] = indexbuffer(faces(mesh))
     if isempty(attribs)
@@ -206,11 +208,9 @@ function NativeMesh{T}(mesh::T) where T <: GeometryBasics.Mesh
     return NativeMesh{T}(result)
 end
 
-
-function NativeMesh{T}(m::Node{T}) where T <: GeometryBasics.Mesh
+function NativeMesh{T}(m::Node{T}) where {T<:GeometryBasics.Mesh}
     result = NativeMesh{T}(m[])
     on(m) do mesh
-
         attribs = GeometryBasics.attributes(mesh)
 
         update!(result.data[:faces], faces(mesh))
