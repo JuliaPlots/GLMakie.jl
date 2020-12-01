@@ -84,8 +84,10 @@ end
 function Base.resize!(window::GLFW.Window, resolution...)
     if isopen(window)
         oldsize = windowsize(window)
-        retina_scale = retina_scaling_factor(window)
-        w, h = resolution ./ retina_scale
+        #TODO Retina style scaling should eventually be reenable but not by default
+        #   Work would need to be done to ensure it worked in all cases
+        #retina_scale = retina_scaling_factor(window)
+        w, h = resolution #./ retina_scale
         if oldsize == (w, h)
             return
         end

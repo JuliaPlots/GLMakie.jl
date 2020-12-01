@@ -177,10 +177,11 @@ function disconnect!(window::GLFW.Window, ::typeof(unicode_input))
 end
 
 # TODO memoise? Or to bug ridden for the small performance gain?
-function retina_scaling_factor(w, fb)
-    (w[1] == 0 || w[2] == 0) && return (1.0, 1.0)
-    fb ./ w
-end
+# So long as retina scaling is disabled memoise not needed
+# function retina_scaling_factor(w, fb)
+#     (w[1] == 0 || w[2] == 0) && return (1.0, 1.0)
+#     fb ./ w
+# end
 
 function framebuffer_size(window::GLFW.Window)
     wh = GLFW.GetFramebufferSize(window)
@@ -190,15 +191,18 @@ function window_size(window::GLFW.Window)
     wh = GLFW.GetWindowSize(window)
     (wh.width, wh.height)
 end
-function retina_scaling_factor(window::GLFW.Window)
-    w, fb = window_size(window), framebuffer_size(window)
-    retina_scaling_factor(w, fb)
-end
+# function retina_scaling_factor(window::GLFW.Window)
+#     w, fb = window_size(window), framebuffer_size(window)
+#     retina_scaling_factor(w, fb)
+# end
 
 function correct_mouse(window::GLFW.Window, w, h)
     ws, fb = window_size(window), framebuffer_size(window)
-    s = retina_scaling_factor(ws, fb)
-    (w * s[1], fb[2] - (h * s[2]))
+    
+    #Not Needed while Retina is disable
+    #s = retina_scaling_factor(ws, fb)
+    #(w * s[1], fb[2] - (h * s[2]))
+    (w , fb[2] - (h))
 end
 
 """
