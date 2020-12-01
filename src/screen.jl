@@ -323,6 +323,10 @@ function Screen(;
         focus = false,
         kw_args...
     )
+    
+    # This PollEvents is required so that the FrameBuffer in the GLFW.Window is the correct size
+    GLFW.PollEvents()
+
     GLFW.SetWindowIcon(window, AbstractPlotting.icon())
 
     # tell GLAbstraction that we created a new context.
@@ -331,7 +335,8 @@ function Screen(;
     GLAbstraction.empty_shader_cache!()
     push!(gl_screens, window)
 
-    resize!(window, resolution...)
+    # This resize was needed when Window was being initialized smaller than required
+    # resize!(window, resolution...)
     fb = GLFramebuffer(resolution)
 
     screen = Screen(
@@ -358,11 +363,13 @@ function Screen(;
     return screen
 end
 
-function global_gl_screen()
+#resolution in needed here so avoid an un needed resize as the 
+# Sceen constructor called here is the main cal to Screen()
+function global_gl_screen(resolution = AbstractPlotting.reasonable_resolution())
     screen = if isassigned(GLOBAL_GL_SCREEN) && isopen(GLOBAL_GL_SCREEN[])
         GLOBAL_GL_SCREEN[]
     else
-        GLOBAL_GL_SCREEN[] = Screen()
+        GLOBAL_GL_SCREEN[] = Screen(resolution = resolution)
         GLOBAL_GL_SCREEN[]
     end
     return screen
@@ -372,7 +379,7 @@ function global_gl_screen(resolution::Tuple, visibility::Bool, tries = 1)
     # ugly but easy way to find out if we create new screen.
     # could just be returned by global_gl_screen, but dont want to change the API
     isold = isassigned(GLOBAL_GL_SCREEN) && isopen(GLOBAL_GL_SCREEN[])
-    screen = global_gl_screen()
+    screen = global_gl_screen(resolution)
     GLFW.set_visibility!(to_native(screen), visibility)
     resize!(screen, resolution...)
     new_size = windowsize(to_native(screen))

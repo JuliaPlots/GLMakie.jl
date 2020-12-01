@@ -246,7 +246,12 @@ function MonitorProperties(monitor::GLFW.Monitor)
     position = Vec{2, Int}(GLFW.GetMonitorPos(monitor)...)
     physicalsize = Vec{2, Int}(GLFW.GetMonitorPhysicalSize(monitor)...)
     videomode = GLFW.GetVideoMode(monitor)
-    sfactor = Sys.isapple() ? 2.0 : 1.0
+    
+    #Retina style full Framebuffer is diabled now but may be reintroduced latter
+    #Even then this logic will need to be more complicated to deal with non Retina displays
+    # sfactor = Sys.isapple() ? 2.0 : 1.0
+    sfactor = 1.0
+
     dpi = Vec(videomode.width * 25.4, videomode.height * 25.4) * sfactor ./ Vec{2, Float64}(physicalsize)
     videomode_supported = GLFW.GetVideoModes(monitor)
 
