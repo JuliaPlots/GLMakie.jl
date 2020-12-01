@@ -294,7 +294,9 @@ function Screen(;
         empty!(gl_screens)
     end
     # Somehow this constant isn't wrapped by glfw
+    # TODO move these hint declorations to GLFW.jl
     GLFW_FOCUS_ON_SHOW = 0x0002000C
+    GLFW_COCOA_RETINA_FRAMEBUFFER=0x00023001
     windowhints = [
         (GLFW.SAMPLES,      0),
         (GLFW.DEPTH_BITS,   0),
@@ -311,10 +313,11 @@ function Screen(;
         (GLFW_FOCUS_ON_SHOW, WINDOW_CONFIG.focus_on_show[]),
         (GLFW.DECORATED, WINDOW_CONFIG.decorated[]),
         (GLFW.FLOATING, WINDOW_CONFIG.float[]),
+        (GLFW_COCOA_RETINA_FRAMEBUFFER, false), #This is needed otherwise on apple system will be drawing 4x or 9x the needed pixels
     ]
 
     window = GLFW.Window(
-        name = title, resolution = (10, 10), # 10, because smaller sizes seem to error on some platforms
+        name = title, resolution = resolution, 
         windowhints = windowhints,
         visible = false,
         focus = false,
