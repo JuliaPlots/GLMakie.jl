@@ -12,6 +12,7 @@ mutable struct Screen <: GLScreen
     screen2scene::Dict{WeakRef, ScreenID}
     screens::Vector{ScreenArea}
     renderlist::Vector{Tuple{ZIndex, ScreenID, RenderObject}}
+    postprocessors::Vector{PostProcessor}
     cache::Dict{UInt64, RenderObject}
     cache2plot::Dict{UInt16, AbstractPlot}
     framecache::Matrix{RGB{N0f8}}
@@ -24,20 +25,21 @@ mutable struct Screen <: GLScreen
             screen2scene::Dict{WeakRef, ScreenID},
             screens::Vector{ScreenArea},
             renderlist::Vector{Tuple{ZIndex, ScreenID, RenderObject}},
+            postprocessors::Vector{PostProcessor},
             cache::Dict{UInt64, RenderObject},
             cache2plot::Dict{UInt16, AbstractPlot},
         )
         s = size(framebuffer)
         obj = new(
             glscreen, framebuffer, rendertask, screen2scene,
-            screens, renderlist, cache, cache2plot,
-            Matrix{RGB{N0f8}}(undef, s), Observable(nothing),
+            screens, renderlist, postprocessors, cache, cache2plot,
+            Matrix{RGB{N0f8}}(undef, s), Observable(nothing), 
             Observable(true)
         )
     end
 end
 
-GeometryBasics.widths(x::Screen) = size(x.framebuffer.color)
+GeometryBasics.widths(x::Screen) = size(x.framebuffer)
 
 Base.wait(x::Screen) = isassigned(x.rendertask) && wait(x.rendertask[])
 Base.wait(scene::Scene) = wait(AbstractPlotting.getscreen(scene))
@@ -259,18 +261,19 @@ end
 
 function display_loading_image(screen::Screen)
     fb = screen.framebuffer
-    fbsize = size(fb.color)
+    fbsize = size(fb)
     image = get_loading_image(fbsize)
     if size(image) == fbsize
         nw = to_native(screen)
-        fb.color[1:size(image, 1), 1:size(image, 2)] = image # transfer loading image to gpu framebuffer
+        fb.buffers[:color][1:size(image, 1), 1:size(image, 2)] = image # transfer loading image to gpu framebuffer
         ShaderAbstractions.is_context_active(nw) || return
         w, h = fbsize
         glBindFramebuffer(GL_FRAMEBUFFER, 0) # transfer back to window
         glViewport(0, 0, w, h)
         glClearColor(0, 0, 0, 0)
         glClear(GL_COLOR_BUFFER_BIT)
-        GLAbstraction.render(fb.postprocess[3]) # copy postprocess
+        # GLAbstraction.render(fb.postprocess[end]) # copy postprocess
+        GLAbstraction.render(screen.postprocessors[end].robjs[1])
         GLFW.SwapBuffers(nw)
     else
         error("loading_image needs to be Matrix{RGBA{N0f8}} with size(loading_image) == resolution")
@@ -326,12 +329,19 @@ function Screen(;
     resize_native!(window, resolution...; wait_for_resize=false)
     fb = GLFramebuffer(resolution)
 
+    postprocessors = [
+        enable_SSAO[] ? ssao_postprocessor(fb) : empty_postprocessor(),
+        enable_FXAA[] ? fxaa_postprocessor(fb) : empty_postprocessor(),
+        to_screen_postprocessor(fb)
+    ]
+
     screen = Screen(
         window, fb,
         RefValue{Task}(),
         Dict{WeakRef, ScreenID}(),
         ScreenArea[],
         Tuple{ZIndex, ScreenID, RenderObject}[],
+        postprocessors,
         Dict{UInt64, RenderObject}(),
         Dict{UInt16, AbstractPlot}(),
     )
@@ -379,7 +389,7 @@ function pick_native(screen::Screen, xy::Vec{2, Float64})
     sid = Base.RefValue{SelectionID{UInt32}}()
     window_size = widths(screen)
     fb = screen.framebuffer
-    buff = fb.objectid
+    buff = fb.buffers[:objectid]
     glBindFramebuffer(GL_FRAMEBUFFER, fb.id[1])
     glReadBuffer(GL_COLOR_ATTACHMENT1)
     x, y = floor.(Int, xy)
@@ -395,7 +405,7 @@ function pick_native(screen::Screen, xy::Vec{2, Float64}, range::Float64)
     isopen(screen) || return SelectionID{Int}(0, 0)
     window_size = widths(screen)
     fb = screen.framebuffer
-    buff = fb.objectid
+    buff = fb.buffers[:objectid]
     glBindFramebuffer(GL_FRAMEBUFFER, fb.id[1])
     glReadBuffer(GL_COLOR_ATTACHMENT1)
 
