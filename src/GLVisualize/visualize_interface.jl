@@ -164,6 +164,7 @@ function visualize(@nospecialize(main), @nospecialize(s), @nospecialize(data))
     data = _default(main, s, copy(data))
     @gen_defaults! data begin # make sure every object has these!
         model = Mat4f0(I)
+        pickable = true
     end
     return assemble_shader(data)
 end
