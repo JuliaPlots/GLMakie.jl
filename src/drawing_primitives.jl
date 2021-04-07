@@ -314,7 +314,8 @@ function draw_atomic(screen::GLScreen, scene::Scene, x::Text)
             robj[:projectionview] = scene.camera.pixel_space
         end
         robj[:model] = x.model
-
+        robj[:pickable] = get(x, :pickable, true)
+        
         return robj
     end
     return robj
