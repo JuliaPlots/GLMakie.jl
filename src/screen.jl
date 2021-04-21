@@ -7,7 +7,7 @@ abstract type GLScreen <: AbstractScreen end
 
 mutable struct Screen <: GLScreen
     glscreen::GLFW.Window
-    framebuffer::GLFramebuffer
+    framebuffer::Union{Nothing, GLFramebuffer}
     rendertask::RefValue{Task}
     screen2scene::Dict{WeakRef, ScreenID}
     screens::Vector{ScreenArea}
@@ -20,7 +20,7 @@ mutable struct Screen <: GLScreen
     window_open::Observable{Bool}
     function Screen(
             glscreen::GLFW.Window,
-            framebuffer::GLFramebuffer,
+            framebuffer::Union{Nothing, GLFramebuffer},
             rendertask::RefValue{Task},
             screen2scene::Dict{WeakRef, ScreenID},
             screens::Vector{ScreenArea},
@@ -28,12 +28,13 @@ mutable struct Screen <: GLScreen
             postprocessors::Vector{PostProcessor},
             cache::Dict{UInt64, RenderObject},
             cache2plot::Dict{UInt16, AbstractPlot},
+            screensize=size(framebuffer)
         )
-        s = size(framebuffer)
+
         obj = new(
             glscreen, framebuffer, rendertask, screen2scene,
             screens, renderlist, postprocessors, cache, cache2plot,
-            Matrix{RGB{N0f8}}(undef, s), Observable(nothing),
+            Matrix{RGB{N0f8}}(undef, screensize), Observable(nothing),
             Observable(true)
         )
     end
@@ -284,6 +285,7 @@ end
 
 function Screen(;
         resolution = (10, 10), visible = false, title = WINDOW_CONFIG.title[],
+        samples = 0, ssao = enable_SSAO[], fxaa = enable_FXAA[], colorid = true,
         kw_args...
     )
     if !isempty(gl_screens)
@@ -295,7 +297,7 @@ function Screen(;
     # Somehow this constant isn't wrapped by glfw
     GLFW_FOCUS_ON_SHOW = 0x0002000C
     windowhints = [
-        (GLFW.SAMPLES,      0),
+        (GLFW.SAMPLES,      samples),
         (GLFW.DEPTH_BITS,   0),
 
         # SETTING THE ALPHA BIT IS REALLY IMPORTANT ON OSX, SINCE IT WILL JUST KEEP SHOWING A BLACK SCREEN
@@ -340,11 +342,11 @@ function Screen(;
     push!(gl_screens, window)
 
     resize_native!(window, resolution...; wait_for_resize=false)
-    fb = GLFramebuffer(resolution)
+    fb = GLFramebuffer(resolution; colorid=colorid)
 
     postprocessors = [
-        enable_SSAO[] ? ssao_postprocessor(fb) : empty_postprocessor(),
-        enable_FXAA[] ? fxaa_postprocessor(fb) : empty_postprocessor(),
+        ssao ? ssao_postprocessor(fb) : empty_postprocessor(),
+        fxaa ? fxaa_postprocessor(fb) : empty_postprocessor(),
         to_screen_postprocessor(fb)
     ]
 

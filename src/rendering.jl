@@ -88,8 +88,10 @@ end
 
 function setup!(screen)
     glEnable(GL_SCISSOR_TEST)
+    nw = to_native(screen)
+    w, h = GLFW.GetFramebufferSize(nw)
     if isopen(screen)
-        glScissor(0, 0, widths(screen)...)
+        glScissor(0, 0, w, h)
         glClearColor(1, 1, 1, 1)
         glClear(GL_COLOR_BUFFER_BIT)
         for (id, scene) in screen.screens

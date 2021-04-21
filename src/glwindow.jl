@@ -25,13 +25,12 @@ function attach_framebuffer(t::Texture{T, 2}, attachment) where T
     glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D, t.id, 0)
 end
 
-function GLFramebuffer(fb_size::NTuple{2, Int})
+function GLFramebuffer(fb_size::NTuple{2, Int}; colorid=true)
     # First Framebuffer
     render_framebuffer = glGenFramebuffers()
     glBindFramebuffer(GL_FRAMEBUFFER, render_framebuffer)
 
     color_buffer = Texture(RGBA{N0f8}, fb_size, minfilter = :nearest, x_repeat = :clamp_to_edge)
-    objectid_buffer = Texture(Vec{2, GLuint}, fb_size, minfilter = :nearest, x_repeat = :clamp_to_edge)
 
     depth_buffer = Texture(
         Ptr{GLAbstraction.DepthStencil_24_8}(C_NULL), fb_size,
@@ -41,13 +40,22 @@ function GLFramebuffer(fb_size::NTuple{2, Int})
     )
 
     attach_framebuffer(color_buffer, GL_COLOR_ATTACHMENT0)
-    attach_framebuffer(objectid_buffer, GL_COLOR_ATTACHMENT1)
     attach_framebuffer(depth_buffer, GL_DEPTH_ATTACHMENT)
     attach_framebuffer(depth_buffer, GL_STENCIL_ATTACHMENT)
+    buffers = Dict(
+        :color => color_buffer,
+        :depth => depth_buffer
+    )
+    attachments = [GL_COLOR_ATTACHMENT0]
+    if colorid
+        objectid_buffer = Texture(Vec{2, GLuint}, fb_size, minfilter = :nearest, x_repeat = :clamp_to_edge)
+        attach_framebuffer(objectid_buffer, GL_COLOR_ATTACHMENT1)
+        buffers[:objectid] = objectid_buffer
+        push!(attachments, GL_COLOR_ATTACHMENT1)
+    end
 
     status = glCheckFramebufferStatus(GL_FRAMEBUFFER)
     @assert status == GL_FRAMEBUFFER_COMPLETE
-
 
     # Second Framebuffer
     # postprocessor adds buffers here
@@ -57,19 +65,13 @@ function GLFramebuffer(fb_size::NTuple{2, Int})
     @assert status == GL_FRAMEBUFFER_COMPLETE
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
-    fb_size_node = Node(fb_size)
-
-    buffers = Dict(
-        :color => color_buffer,
-        :objectid => objectid_buffer,
-        :depth => depth_buffer
-    )
+    fb_size_node = Observable(fb_size)
 
     return GLFramebuffer(
         fb_size_node,
         (render_framebuffer, color_luma_framebuffer),
         buffers,
-        [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1]
+        attachments
     )
 end
 
