@@ -6,7 +6,6 @@ The OpenGL backend for [Makie](https://github.com/JuliaPlots/Makie.jl)
 ## Issues
 Please file all issues in [Makie.jl](https://github.com/JuliaPlots/Makie.jl/issues/new), and mention GLMakie in the issue text!
 
-
 ## Troubleshooting OpenGL
 
 If you get any error loading GLMakie, it likely means, you don't have an OpenGL capable Graphic Card, or you don't have an OpenGL 3.3 capable video driver installed.
