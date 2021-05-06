@@ -237,9 +237,12 @@ vec4 isosurface(vec3 front, vec3 dir)
     int i = 0;
     vec4 diffuse_color = color_lookup(isovalue, color_map, color_norm, color);
     vec3 camdir = normalize(-dir);
+    float depth = 100000.0;
     for (i; i < num_samples; ++i){
         float density = texture(volumedata, pos).x;
         if(abs(density - isovalue) < isorange){
+            vec4 frag_coord = projectionview * model * vec4(pos, 1);
+            depth = min(depth, frag_coord.z / frag_coord.w);
             vec3 N = gennormal(pos, step_size);
             vec3 L = normalize(o_light_dir - pos);
             // back & frontface...
@@ -250,6 +253,7 @@ vec4 isosurface(vec3 front, vec3 dir)
         }
         pos += dir;
     }
+    gl_FragDepth = depth == 100000.0 ? gl_FragDepth : 0.5 * depth + 0.5;
     return c;
 }
 
