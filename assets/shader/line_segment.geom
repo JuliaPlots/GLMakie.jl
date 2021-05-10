@@ -24,21 +24,27 @@ vec2 screen_space(vec4 vertex)
 {
     return vec2(vertex.xy / vertex.w)*resolution;
 }
+
 void emit_vertex(vec2 position, vec2 uv, int index)
 {
-    vec4 inpos    = gl_in[index].gl_Position;
-    f_uv          = uv;
-    f_color       = g_color[index];
-    gl_Position   = vec4((position / resolution) * inpos.w, inpos.z, inpos.w);
-    f_id          = g_id[index];
-    f_thickness   = g_thickness[index]+AA_THICKNESS;
+    vec4 inpos = gl_in[index].gl_Position;
+    f_uv = uv;
+    f_color = g_color[index];
+    gl_Position = vec4((position / resolution) * inpos.w, inpos.z, inpos.w);
+    f_id = g_id[index];
+    f_thickness = g_thickness[index] + AA_THICKNESS;
     EmitVertex();
 }
 
 uniform int max_primtives;
 
+out vec4 o_view_pos;
+out vec3 o_normal;
+
 void main(void)
 {
+    o_view_pos = vec4(0);
+    o_normal = vec3(0);
     // get the four vertices passed to the shader:
     vec2 p0 = screen_space(gl_in[0].gl_Position); // start of previous segment
     vec2 p1 = screen_space(gl_in[1].gl_Position); // end of previous segment, start of current segment

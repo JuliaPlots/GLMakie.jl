@@ -19,6 +19,8 @@ function _default(main::MatTypes{T}, ::Style, data::Dict) where T <: Colorant
     delete!(data, :ranges)
     @gen_defaults! data begin
         image = main => (Texture, "image, can be a Texture or Array of colors")
+        position_x = nothing => Texture
+        position_y = nothing => Texture
         primitive = const_lift(ranges) do r
             x, y = minimum(r[1]), minimum(r[2])
             xmax, ymax = maximum(r[1]), maximum(r[2])
@@ -39,40 +41,22 @@ function to_plainmesh(geom)
     return NativeMesh(const_lift(GeometryBasics.triangle_mesh, geom))
 end
 
-function to_uvwmesh3d(geom)
-    return NativeMesh(const_lift(GeometryBasics.uvw_triangle_mesh, geom))
-end
-
-function _default(main::VectorTypes{T}, ::Style, data::Dict) where T <: Colorant
-    @gen_defaults! data begin
-        image = main => Texture
-        primitive = FRect2D(0f0, 0f0, length(to_value(main)), 50f0) => to_uvmesh
-        fxaa = false
-        shader = GLVisualizeShader(
-            "fragment_output.frag", "uv_vert.vert", "texture.frag",
-            view = Dict("uv_swizzle" => "o_uv.xy")
-        )
-    end
-end
-
 """
 A matrix of Intensities will result in a contourf kind of plot
 """
 function gl_heatmap(main::MatTypes{T}, data::Dict) where T <: AbstractFloat
-    main_v = to_value(main)
-    @gen_defaults! data begin
-        ranges = (0:size(main_v, 1), 0:size(main_v, 2))
-    end
-    prim = const_lift(data[:ranges]) do ranges
-        x, y, xw, yh = minimum(ranges[1]), minimum(ranges[2]), maximum(ranges[1]), maximum(ranges[2])
-        return FRect2D(x, y, xw-x, yh-y)
-    end
-    delete!(data, :ranges)
+    instances = map(data[:position_x], data[:position_y]) do xs, ys
+        (length(xs)-1) * (length(ys)-1)
+    end 
     @gen_defaults! data begin
         intensity = main => Texture
         color_map = default(Vector{RGBA{N0f8}},s) => Texture
-        primitive = prim => to_uvmesh
+        primitive = Rect2D(0f0,0f0,1f0,1f0) => native_triangle_mesh
+        instances = instances => "number of planes used to render the heatmap"
+        # instances = const_lift(x->(size(x,1)) * (size(x,2)), main) => "number of planes used to render the heatmap"
         nan_color = RGBAf0(1, 0, 0, 1)
+        highclip = RGBAf0(0, 0, 0, 0)
+        lowclip = RGBAf0(0, 0, 0, 0)
         color_norm = const_lift(extrema2f0, main)
         stroke_width::Float32 = 0.05f0
         levels::Float32 = 5f0
@@ -82,69 +66,11 @@ function gl_heatmap(main::MatTypes{T}, data::Dict) where T <: AbstractFloat
     end
 end
 
-"""
-Float matrix with the style distancefield will be interpreted as a distancefield.
-A distancefield is describing a shape, with positive values denoting the inside
-of the shape, negative values the outside and 0 the border
-"""
-function _default(main::MatTypes{T}, s::style"distancefield", data::Dict) where T <: AbstractFloat
-    @gen_defaults! data begin
-        distancefield = main => Texture
-        shape = DISTANCEFIELD
-        fxaa = false
-    end
-    rect = FRect2D(0f0,0f0, size(to_value(main))...)
-    _default((rect, Point2f0[0]), s, data)
-end
-
-"""
-Takes a shader as a parametric function. The shader should contain a function stubb
-like this:
-```GLSL
-uniform float arg1; // you can add arbitrary uniforms and supply them via the keyword args
-float function(float x) {
- return arg1*sin(1/tan(x));
-}
-```
-"""
-_default(func::String, s::Style{:shader}, data::Dict) = @gen_defaults! data begin
-    color = default(RGBA, s) => Texture
-    dimensions = (120f0, 120f0)
-    primitive = FRect2D(0f0,0f0, dimensions...) => to_uvmesh
-    fxaa = false
-    shader = GLVisualizeShader(
-        "fragment_output.frag", "parametric.vert", "parametric.frag",
-        view = Dict("function" => func)
-    )
-end
 
 #Volumes
 const VolumeElTypes = Union{Gray, AbstractFloat}
 
 const default_style = Style{:default}()
-
-function _default(a::VolumeTypes{T}, s::Style{:iso}, data::Dict) where T <: VolumeElTypes
-    data = @gen_defaults! data begin
-        isovalue  = 0.5f0
-        algorithm = IsoValue
-    end
-     _default(a, default_style, data)
-end
-
-function _default(a::VolumeTypes{T}, s::Style{:absorption}, data::Dict) where T<:VolumeElTypes
-    data = @gen_defaults! data begin
-        absorption = 1f0
-        algorithm  = Absorption
-    end
-    _default(a, default_style, data)
-end
-
-function _default(a::VolumeTypes{T}, s::Style{:absorption}, data::Dict) where T<:RGBA
-    data = @gen_defaults! data begin
-        algorithm  = AbsorptionRGBA
-    end
-    _default(a, default_style, data)
-end
 
 using .GLAbstraction: StandardPrerender
 
@@ -189,7 +115,7 @@ function _default(main::VolumeTypes{T}, s::Style, data::Dict) where T <: RGBA
         # These don't do anything but are needed for type specification in the frag shader
         color_map = nothing => Texture
         color_norm = nothing
-        color = color_map == nothing ? default(RGBA, s) : nothing
+        color = color_map === nothing ? default(RGBA, s) : nothing
 
         algorithm = AbsorptionRGBA
         shader = GLVisualizeShader("fragment_output.frag", "util.vert", "volume.vert", "volume.frag")

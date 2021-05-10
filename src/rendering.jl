@@ -1,28 +1,89 @@
-function renderloop(screen::Screen; framerate = 1/30, prerender = () -> nothing)
-    # Somehow errors get sometimes ignored, so we at least print them here
-    try
-        while isopen(screen)
-            t = time()
-            GLFW.PollEvents() # GLFW poll
-            prerender()
+
+function vsynced_renderloop(screen)
+    while isopen(screen) && !WINDOW_CONFIG.exit_renderloop[]
+        pollevents(screen) # GLFW poll
+        screen.render_tick[] = nothing
+        if WINDOW_CONFIG.pause_rendering[]
+            sleep(0.1)
+        else
             make_context_current(screen)
             render_frame(screen)
             GLFW.SwapBuffers(to_native(screen))
-            diff = framerate - (time() - t)
-            if diff > 0
+            yield()
+        end
+    end
+end
+
+function fps_renderloop(screen::Screen, framerate=WINDOW_CONFIG.framerate[])
+    time_per_frame = 1.0 / framerate
+    while isopen(screen) && !WINDOW_CONFIG.exit_renderloop[]
+        t = time_ns()
+        pollevents(screen) # GLFW poll
+        screen.render_tick[] = nothing
+        if WINDOW_CONFIG.pause_rendering[]
+            sleep(0.1)
+        else
+            make_context_current(screen)
+            render_frame(screen)
+            GLFW.SwapBuffers(to_native(screen))
+            t_elapsed = (time_ns() - t) / 1e9
+            diff = time_per_frame - t_elapsed
+            if diff > 0.001 # can't sleep less than 0.001
                 sleep(diff)
-            else # if we don't sleep, we need to yield explicitely
+            else # if we don't sleep, we still need to yield explicitely to other tasks
                 yield()
             end
         end
+    end
+end
+
+function renderloop(screen; framerate=WINDOW_CONFIG.framerate[])
+    isopen(screen) || error("Screen most be open to run renderloop!")
+    try
+        if WINDOW_CONFIG.vsync[]
+            GLFW.SwapInterval(1)
+            vsynced_renderloop(screen)
+        else
+            GLFW.SwapInterval(0)
+            fps_renderloop(screen, framerate)
+        end
     catch e
-        ce = CapturedException(e, Base.catch_backtrace())
-        @error "Error in renderloop!" exception=ce
+        showerror(stderr, e, catch_backtrace())
+        println(stderr)
         rethrow(e)
     finally
         destroy!(screen)
     end
-    return
+end
+
+const WINDOW_CONFIG = (renderloop = Ref{Function}(renderloop),
+    vsync = Ref(false),
+    framerate = Ref(30.0),
+    float = Ref(false),
+    pause_rendering = Ref(false),
+    focus_on_show = Ref(false),
+    decorated = Ref(true),
+    title = Ref("Makie"),
+    exit_renderloop = Ref(false),)
+
+"""
+    set_window_config!(;
+        renderloop = renderloop,
+        vsync = false,
+        framerate = 30.0,
+        float = false,
+        pause_rendering = false,
+        focus_on_show = false,
+        decorated = true,
+        title = "Makie"
+    )
+Updates the screen configuration, will only go into effect after closing the current
+window and opening a new one!
+"""
+function set_window_config!(; kw...)
+    for (key, value) in kw
+        getfield(WINDOW_CONFIG, key)[] = value
+    end
 end
 
 function setup!(screen)
@@ -57,57 +118,64 @@ const selection_queries = Function[]
 """
 Renders a single frame of a `window`
 """
-function render_frame(screen::Screen)
+function render_frame(screen::Screen; resize_buffers=true)
     nw = to_native(screen)
     ShaderAbstractions.is_context_active(nw) || return
     fb = screen.framebuffer
-    wh = Int.(framebuffer_size(nw))
-    resize!(fb, wh)
-    w, h = wh
+    if resize_buffers
+        wh = Int.(framebuffer_size(nw))
+        resize!(fb, wh)
+    end
+    w, h = size(fb)
+
+    # prepare stencil (for sub-scenes)
     glEnable(GL_STENCIL_TEST)
-    #prepare for geometry in need of anti aliasing
     glBindFramebuffer(GL_FRAMEBUFFER, fb.id[1]) # color framebuffer
-    glDrawBuffers(2, [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1])
+    glDrawBuffers(length(fb.render_buffer_ids), fb.render_buffer_ids)
     glEnable(GL_STENCIL_TEST)
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
     glStencilMask(0xff)
     glClearStencil(0)
-    glClearColor(0,0,0,0)
+    glClearColor(0, 0, 0, 0)
     glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT)
+    glDrawBuffer(fb.render_buffer_ids[1])
     setup!(screen)
+    glDrawBuffers(length(fb.render_buffer_ids), fb.render_buffer_ids)
 
+    # render with FXAA & SSAO
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
     glStencilMask(0x00)
-    GLAbstraction.render(screen, true)
+    GLAbstraction.render(screen, true, true)
+
+
+    # SSAO
+    screen.postprocessors[1].render(screen)
+
+    # render with FXAA but no SSAO
+    glDrawBuffers(2, [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1])
+    glEnable(GL_STENCIL_TEST)
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
+    glStencilMask(0x00)
+    GLAbstraction.render(screen, true, false)
     glDisable(GL_STENCIL_TEST)
 
-    # transfer color to luma buffer and apply fxaa
-    glBindFramebuffer(GL_FRAMEBUFFER, fb.id[2]) # luma framebuffer
-    glDrawBuffer(GL_COLOR_ATTACHMENT0)
-    glViewport(0, 0, w, h)
-    glClearColor(0,0,0,0)
-    glClear(GL_COLOR_BUFFER_BIT)
-    GLAbstraction.render(fb.postprocess[1]) # add luma and preprocess
+    # FXAA
+    screen.postprocessors[2].render(screen)
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fb.id[1]) # transfer to non fxaa framebuffer
-    glViewport(0, 0, w, h)
-    glDrawBuffer(GL_COLOR_ATTACHMENT0)
-    GLAbstraction.render(fb.postprocess[2]) # copy with fxaa postprocess
 
-    #prepare for non anti aliased pass
+    # no FXAA primary render
     glDrawBuffers(2, [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1])
-
     glEnable(GL_STENCIL_TEST)
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
     glStencilMask(0x00)
     GLAbstraction.render(screen, false)
     glDisable(GL_STENCIL_TEST)
-    glBindFramebuffer(GL_FRAMEBUFFER, 0) # transfer back to window
-    glViewport(0, 0, w, h)
-    glClearColor(0, 0, 0, 0)
-    glClear(GL_COLOR_BUFFER_BIT)
-    GLAbstraction.render(fb.postprocess[3]) # copy postprocess
+
+    # transfer everything to the screen
+    screen.postprocessors[3].render(screen)
+
+
     return
 end
 
@@ -119,7 +187,7 @@ function id2scene(screen, id1)
     return false, nothing
 end
 
-function GLAbstraction.render(screen::Screen, fxaa::Bool)
+function GLAbstraction.render(screen::GLScreen, fxaa::Bool, ssao::Bool=false)
     # Somehow errors in here get ignored silently!?
     try
         # sort by overdraw, so that overdrawing objects get drawn last!
@@ -137,7 +205,10 @@ function GLAbstraction.render(screen::Screen, fxaa::Bool)
                 # so we can't do the stencil test
                 glStencilFunc(GL_ALWAYS, screenid, 0xff)
             end
-            if fxaa && elem[:fxaa][]
+            if (fxaa && elem[:fxaa][]) && ssao && elem[:ssao][]
+                render(elem)
+            end
+            if (fxaa && elem[:fxaa][]) && !ssao && !elem[:ssao][]
                 render(elem)
             end
             if !fxaa && !elem[:fxaa][]
@@ -145,7 +216,7 @@ function GLAbstraction.render(screen::Screen, fxaa::Bool)
             end
         end
     catch e
-        @error "Error while rendering!" exception=e
+        @error "Error while rendering!" exception = e
         rethrow(e)
     end
     return

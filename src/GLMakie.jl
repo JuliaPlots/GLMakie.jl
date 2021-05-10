@@ -9,42 +9,28 @@ using AbstractPlotting: convert_attribute, @extractvalue, LineSegments
 using AbstractPlotting: @get_attribute, to_value, to_colormap, extrema_nan
 using AbstractPlotting: ClosedInterval, (..)
 using ShaderAbstractions
+using FreeTypeAbstraction
 
 using Base: RefValue
 import Base: push!, isopen, show
 using Base.Iterators: repeated, drop
 
+using LinearAlgebra
+
 for name in names(AbstractPlotting)
     @eval import AbstractPlotting: $(name)
+    @eval export $(name)
 end
 
 struct GLBackend <: AbstractPlotting.AbstractBackend
 end
 
-"""
-returns path relative to the assets folder
-"""
-assetpath(folders...) = joinpath(@__DIR__, "GLVisualize", "assets", folders...)
+loadshader(name) = normpath(joinpath(@__DIR__, "..", "assets", "shader", name))
 
-"""
-Loads a file from the asset folder
-"""
-function loadasset(folders...; kw_args...)
-    path = assetpath(folders...)
-    isfile(path) || isdir(path) || error("Could not locate file at $path")
-    load(path; kw_args...)
-end
+# don't put this into try catch, to not mess with normal errors
+include("gl_backend.jl")
 
-export assetpath, loadasset
-
-include("../deps/deps.jl")
-
-if WORKING_OPENGL
-     # don't put this into try catch, to not mess with normal errors
-    include("gl_backend.jl")
-end
-
-function activate!(use_display = true)
+function activate!(use_display=true)
     b = GLBackend()
     AbstractPlotting.register_backend!(b)
     AbstractPlotting.set_glyph_resolution!(AbstractPlotting.High)
@@ -53,11 +39,14 @@ function activate!(use_display = true)
 end
 
 function __init__()
-    if WORKING_OPENGL
-        activate!()
-    else
-        @warn("Loaded OpenGL Backend, but OpenGL isn't working")
-    end
+    activate!()
+end
+
+export set_window_config!
+
+if Base.VERSION >= v"1.4.2"
+    include("precompile.jl")
+    _precompile_()
 end
 
 end

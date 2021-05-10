@@ -65,7 +65,6 @@ function set_packing_alignment(a) # at some point we should specialize to array/
     glPixelStorei(GL_UNPACK_SKIP_ROWS, 0)
 end
 
-
 function Texture(
         data::Ptr{T}, dims::NTuple{NDim, Int};
         internalformat::GLenum = default_internalcolorformat(T),
@@ -114,6 +113,17 @@ Colors from Colors.jl should mostly work as well
 """
 Texture(image::Array{T, NDim}; kw_args...) where {T <: GLArrayEltypes, NDim} =
     Texture(pointer(image), size(image); kw_args...)::Texture{T, NDim}
+
+function Texture(s::ShaderAbstractions.Sampler{T, N}; kwargs...) where {T, N}
+    tex = Texture(
+        pointer(s.data), size(s.data),
+        minfilter = s.minfilter, magfilter = s.magfilter,
+        x_repeat = s.repeat[1], y_repeat = s.repeat[min(2, N)], z_repeat = s.repeat[min(3, N)],
+        anisotropic = s.anisotropic; kwargs...
+    )
+    ShaderAbstractions.connect!(s, tex)
+    return tex
+end
 
 """
 Constructor for Array Texture
@@ -312,8 +322,6 @@ end
 gpu_data(t::TextureBuffer{T}) where {T} = gpu_data(t.buffer)
 gpu_getindex(t::TextureBuffer{T}, i::UnitRange{Int64}) where {T} = t.buffer[i]
 
-
-
 similar(t::Texture{T, NDim}, newdims::Int...) where {T, NDim} = similar(t, newdims)
 function similar(t::TextureBuffer{T}, newdims::NTuple{1, Int}) where T
     buff = similar(t.buffer, newdims...)
@@ -490,9 +498,9 @@ end
 const GL_TEXTURE_MAX_ANISOTROPY_EXT = GLenum(0x84FE)
 
 function set_parameters(t::Texture{T, N}, params::TextureParameters=t.parameters) where {T, N}
-    fnames    = (:minfilter, :magfilter, :repeat)
-    data      = Dict([(name, map_texture_paramers(getfield(params, name))) for name in fnames])
-    result    = Tuple{GLenum, Any}[]
+    fnames = (:minfilter, :magfilter, :repeat)
+    data = Dict([(name, map_texture_paramers(getfield(params, name))) for name in fnames])
+    result = Tuple{GLenum, Any}[]
     push!(result, (GL_TEXTURE_MIN_FILTER, data[:minfilter]))
     push!(result, (GL_TEXTURE_MAG_FILTER, data[:magfilter]))
     push!(result, (GL_TEXTURE_WRAP_S, data[:repeat][1]))
