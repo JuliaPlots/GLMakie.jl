@@ -524,7 +524,7 @@ function Makie.pick_sorted(scene::SceneLike, screen::Screen, xy, range)
     picks = pick_native(screen, IRect2D(x0, y0, dx, dy))
 
     selected = filter(x -> x[1] > 0 && haskey(screen.cache2plot, x[1]), unique(vec(picks)))
-    distances = [range^2 for _ in selected]
+    distances = [Float64(range)^2 for _ in selected]
     x, y =  xy .+ 1 .- Vec2f0(x0, y0)
     for i in 1:dx, j in 1:dy
         if picks[i, j][1] > 0
