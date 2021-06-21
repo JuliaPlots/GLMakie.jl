@@ -1,3 +1,9 @@
+> ⚠️ **INFO: This repository is deprecated**
+> 
+> GLMakie has been moved into the monorepo at [Makie.jl](https://github.com/JuliaPlots/Makie.jl).
+> The latest version can be determined by checking the Project.toml in the GLMakie subdirectory.
+
+
 The OpenGL backend for [Makie](https://github.com/JuliaPlots/Makie.jl)
 
 ![CI](https://github.com/JuliaPlots/GLMakie.jl/workflows/CI/badge.svg)
